@@ -1,5 +1,25 @@
+(* ==========================================================================
+   PRG_INIT - инициализация контроллера.
+   Вызывается ОДИН РАЗ по событию M8002 (начальный импульс), поэтому
+   собственной защиты в коде нет.
+   ========================================================================== *)
 EI(TRUE);
-(* Init PID *) (* Настройка параметров ПИД регулирования *)
+
+(* --------------------------------------------------------------------------
+   Параметры ПИД-регулятора КАСКАДА котлов - блок параметров R500..R528
+   (29 слов, положение слова в блоке задано драйвером PID):
+     R500       - время дискретизации, единицы 100 мс (100 = 10 с)
+     R501       - режим работы: 2#...0001 - обычный,
+                  биты 4 (16) и 6 (64) включают автонастройку
+     R502..R521 - коэффициенты P, I, D и остальные параметры контура.
+                  Задаются оператором с панели и в программе НЕ
+                  инициализируются (см. аварию 30 "нет настроек").
+     R522       - верхний предел выхода, 600 = 100 %
+     R523       - нижний предел выхода
+     R525       - дельта автонастройки (5 = 0.5 бара)
+     R526, R527 - пределы выхода во время автонастройки
+     R528       - служебное слово блока ПИД
+   -------------------------------------------------------------------------- *)
 R500 := 100; (* Time 1c *)
 R501 := 2#0000_0000_0000_0001; (* Heating mode *)
 R522 := 600; (* Output max 100% *)
@@ -8,7 +28,10 @@ R525 := 5; (* Delta for Autotune 0.5 bar *)
 R526 := R522; (* Autotune output upper value *)
 R527 := 0; (* Autotune output lower value *)
 
-(* Init PID *) (* Настройка параметров ПИД регулирования *)
+(* --------------------------------------------------------------------------
+   Параметры ПИД-регулятора 3-ходового клапана ГВС - блок R600..R628.
+   Смысл слов тот же, что и в блоке R500..R528. Выход 0..1000 (0..100.0 %).
+   -------------------------------------------------------------------------- *)
 R600 := 100; (* Time 1c *)
 R601 := 2#0000_0000_0000_0001; (* Heating mode *)
 R622 := 1000; (* Output max 100% *)
@@ -17,9 +40,16 @@ R625 := 5; (* Delta for Autotune 0.5 bar *)
 R626 := R622; (* Autotune output upper value *)
 R627 := 0; (* Autotune output lower value *)
 
-AM_ALARMS_NUM := 34;
-(*AM_D_START := 3000;*)
+(* Количество аварий задаётся константой c_AM_ALARMS_NUM в GVL.csv (38, т.е.
+   аварии 0..38). Раньше здесь было присваивание AM_ALARMS_NUM := 34 -
+   границу массива AM_ALARMS в теле программы менять нельзя.
+   AM_D_START - адрес начала энергонезависимой области менеджера тревог,
+   задан настройкой библиотеки. *)
 
+(* --------------------------------------------------------------------------
+   Пределы шкал аналоговых входов (0.1 бара). Если оператор не ввёл значение
+   (0), подставляется 16.0 бара.
+   -------------------------------------------------------------------------- *)
 MOV(Max_P2 = 0, 160, Max_P2);
 MOV(Max_P3 = 0, 160, Max_P3);
 MOV(Max_P1 = 0, 160, Max_P1);
@@ -30,9 +60,15 @@ MOV(Max_P_GVSFrom = 0, 160, Max_P_GVSFrom);
 MOV(Max_P_Set = 0, 160, Max_P_Set);
 MOV(Max_P_GAZ = 0, 160, Max_P_GAZ);
 
-D8000 := 500; (*Watch dog timer*)
+(* Сторожевой таймер контроллера, 500 мс *)
+D8000 := 500;
 
-(* Входи РТ100 *)
+(* --------------------------------------------------------------------------
+   Регистры R23500.. конфигурируют режим аналоговых каналов модулей:
+   0 - вход подключён к Pt100, 1 - вход 4..20 мА.
+   R23500..R23509 - 10 каналов Pt100,
+   R23512..R23520 - 9 каналов 4..20 мА.
+   -------------------------------------------------------------------------- *)
 R23500 := 0;
 R23501 := 0;
 R23502 := 0;
@@ -53,82 +89,141 @@ R23517 := 1;
 R23518 := 1;
 R23519 := 1;
 R23520 := 1;
-(* Входы на ПЛК *)
+(* Конфигурация быстрых входов/выходов ПЛК *)
 R23940 := 0;
 R23941 := 0;
 R23942 := 1;
 R23943 := 1;
 
-fbAmInit.iSeverity := AM_ERROR;
+(* ==========================================================================
+   ОПИСАНИЕ АВАРИЙ. Все параметры указываются явно, чтобы вставка новой
+   аварии в середину списка не меняла настройки последующих.
+     iProcess - группа (1/2/3 - котёл 1/2/3, 7 - насосы, 10 - общие)
+     iDelay   - задержка срабатывания, единицы 100 мс (20 = 2 с)
+     xLatch   - защёлка (сброс только оператором)
+     xBuzzer  - вывод на сирену
+     xLock    - блокировка работы каскада (группа -> fbAmBlock)
+   ========================================================================== *)
+fbAmInit.iSeverity := c_AM_ERROR;
 
-(* Burner 1 Sensor, Alarm, Temperature, Pressure *)
-fbAmInit(iNum := 0, iProcess := 1,
-                    xLatch := 1, xBuzzer := 1, xLock := 0); (* Temperature *)
-fbAmInit(iNum := 1, xLatch := 0); (* max Pressure *)
-fbAmInit(iNum := 2, xLatch := 0); (* min Pressure *)
-fbAmInit(iNum := 3, xLatch := 1); (* Burner alarm *)
+(* --- Котёл 1 --------------------------------------------------------- *)
+(* 0 - перегрев котла: котёл выводится из каскада *)
+fbAmInit(iNum := 0, iProcess := 1, iDelay := 0,
+         xLatch := 1, xBuzzer := 1, xLock := 0);
+(* 1 - давление в котле выше SV_MaxPressure *)
+fbAmInit(iNum := 1, iProcess := 1, iDelay := 0,
+         xLatch := 0, xBuzzer := 1, xLock := 0);
+(* 2 - давление в котле ниже SV_MinPressure *)
+fbAmInit(iNum := 2, iProcess := 1, iDelay := 0,
+         xLatch := 0, xBuzzer := 1, xLock := 0);
+(* 3 - авария горелки (DI_BurnAlarm1) *)
+fbAmInit(iNum := 3, iProcess := 1, iDelay := 0,
+         xLatch := 1, xBuzzer := 1, xLock := 0);
+(* 4 - котёл 1: пропал контакт термозащиты (X035) *)
+fbAmInit(iNum := 4, iProcess := 1, iDelay := 20,
+         xLatch := 1, xBuzzer := 1, xLock := 0);
 
-(* Burner 2 Sensor, Alarm, Temperature, Pressure *)
-fbAmInit(iNum := 5, iProcess := 2,
-                    xLatch := 1, xBuzzer := 1, xLock := 0); (* Temperature *)
-fbAmInit(iNum := 6, xLatch := 0); (* max Pressure *)
-fbAmInit(iNum := 7, xLatch := 0); (* min Pressure *)
-fbAmInit(iNum := 8, xLatch := 1); (* Burner alarm *)
+(* --- Котёл 2 --------------------------------------------------------- *)
+(* 5 - перегрев котла *)
+fbAmInit(iNum := 5, iProcess := 2, iDelay := 0,
+         xLatch := 1, xBuzzer := 1, xLock := 0);
+(* 6 - давление в котле выше SV_MaxPressure *)
+fbAmInit(iNum := 6, iProcess := 2, iDelay := 0,
+         xLatch := 0, xBuzzer := 1, xLock := 0);
+(* 7 - давление в котле ниже SV_MinPressure *)
+fbAmInit(iNum := 7, iProcess := 2, iDelay := 0,
+         xLatch := 0, xBuzzer := 1, xLock := 0);
+(* 8 - авария горелки (DI_BurnAlarm2) *)
+fbAmInit(iNum := 8, iProcess := 2, iDelay := 0,
+         xLatch := 1, xBuzzer := 1, xLock := 0);
+(* 9 - котёл 2: пропал контакт термозащиты (X036) *)
+fbAmInit(iNum := 9, iProcess := 2, iDelay := 20,
+         xLatch := 1, xBuzzer := 1, xLock := 0);
 
-(* Burner 3 Sensor, Alarm, Temperature, Pressure *)
-fbAmInit(iNum := 10, iProcess := 3,
-                    xLatch := 1, xBuzzer := 1, xLock := 0); (* Temperature *)
-fbAmInit(iNum := 11, xLatch := 0); (* max Pressure *)
-fbAmInit(iNum := 12, xLatch := 0); (* min Pressure *)
-fbAmInit(iNum := 13, xLatch := 1); (* Burner alarm *)
+(* --- Котёл 3 --------------------------------------------------------- *)
+(* 10 - перегрев котла *)
+fbAmInit(iNum := 10, iProcess := 3, iDelay := 0,
+         xLatch := 1, xBuzzer := 1, xLock := 0);
+(* 11 - давление в котле выше SV_MaxPressure *)
+fbAmInit(iNum := 11, iProcess := 3, iDelay := 0,
+         xLatch := 0, xBuzzer := 1, xLock := 0);
+(* 12 - давление в котле ниже SV_MinPressure *)
+fbAmInit(iNum := 12, iProcess := 3, iDelay := 0,
+         xLatch := 0, xBuzzer := 1, xLock := 0);
+(* 13 - авария горелки (DI_BurnAlarm3) *)
+fbAmInit(iNum := 13, iProcess := 3, iDelay := 0,
+         xLatch := 1, xBuzzer := 1, xLock := 0);
+(* 14 - котёл 3: пропал контакт термозащиты (X037) *)
+fbAmInit(iNum := 14, iProcess := 3, iDelay := 20,
+         xLatch := 1, xBuzzer := 1, xLock := 0);
 
-(* DO_Pump1_T1 *)
-fbAmInit(iNum := 15, iDelay := 20, iProcess := 7, xLatch := 1, xBuzzer := 1, xLock := 0);
-(* DO_Pump2_T1 *)
-fbAmInit(iNum := 16);
-(* DO_Pump1_T1_2 *)
-fbAmInit(iNum := 17);
-(* DO_Pump2_T1_2 *)
-fbAmInit(iNum := 18);
-(* DO_Pump1_T3 *)
-fbAmInit(iNum := 19);
-(* DO_Pump2_T3 *)
-fbAmInit(iNum := 20);
-(* DO_Pump1 *)
-fbAmInit(iNum := 21);
-(* DO_Pump2 *)
-fbAmInit(iNum := 22);
-(* DO_Pump3 *)
-fbAmInit(iNum := 23);
+(* --- Насосы: нет подтверждения работы (2 с) -------------------------- *)
+(* 15 - насос 1 контура Т1 *)
+fbAmInit(iNum := 15, iProcess := 7, iDelay := 20,
+         xLatch := 1, xBuzzer := 1, xLock := 0);
+(* 16 - насос 2 контура Т1 *)
+fbAmInit(iNum := 16, iProcess := 7, iDelay := 20,
+         xLatch := 1, xBuzzer := 1, xLock := 0);
+(* 17 - насос 1 контура Т1.2 *)
+fbAmInit(iNum := 17, iProcess := 7, iDelay := 20,
+         xLatch := 1, xBuzzer := 1, xLock := 0);
+(* 18 - насос 2 контура Т1.2 *)
+fbAmInit(iNum := 18, iProcess := 7, iDelay := 20,
+         xLatch := 1, xBuzzer := 1, xLock := 0);
+(* 19 - насос 1 контура Т3 *)
+fbAmInit(iNum := 19, iProcess := 7, iDelay := 20,
+         xLatch := 1, xBuzzer := 1, xLock := 0);
+(* 20 - насос 2 контура Т3 *)
+fbAmInit(iNum := 20, iProcess := 7, iDelay := 20,
+         xLatch := 1, xBuzzer := 1, xLock := 0);
+(* 21 - насос 1 малого котлового контура *)
+fbAmInit(iNum := 21, iProcess := 7, iDelay := 20,
+         xLatch := 1, xBuzzer := 1, xLock := 0);
+(* 22 - насос 2 малого котлового контура *)
+fbAmInit(iNum := 22, iProcess := 7, iDelay := 20,
+         xLatch := 1, xBuzzer := 1, xLock := 0);
+(* 23 - насос 3 малого котлового контура *)
+fbAmInit(iNum := 23, iProcess := 7, iDelay := 20,
+         xLatch := 1, xBuzzer := 1, xLock := 0);
 
-(* Pressure gaz low *)
-fbAmInit(iNum := 24, iDelay := 0, iProcess := 10, xLatch := 0, xBuzzer := 0, xLock := 1);
-(* Pressure set low *)
-fbAmInit(iNum := 25, xLatch := 0, xBuzzer := 0, xLock := 0);
-(* EKM *)
-fbAmInit(iNum := 26, xLatch := 1, xBuzzer := 1, xLock := 1);
-(* ES *)
-fbAmInit(iNum := 27, xLatch := 0, xBuzzer := 1);
-(* RKF *)
-fbAmInit(iNum := 28, xLatch := 0, xBuzzer := 0);
-(* no available pumps *)
-fbAmInit(iNum := 29, xLatch := 0, xBuzzer := 1);
-(* no settings*)
-fbAmInit(iNum := 30, xLatch := 0, xBuzzer := 0);
-(* no pumps *)
-fbAmInit(iNum := 31, iDelay := 20, xLatch := 0, xBuzzer := 0,  xLock := 1); (*inache oshibcu ne vidno samosbrasivaetsya*)
-(* Max temperature *)
-fbAmInit(iNum := 32, xLatch := 0, xBuzzer := 0, xLock := 0);
-(* Max pressure *)
-fbAmInit(iNum := 33, xLatch := 0, xBuzzer := 0);
-(* время набра воды *)
-fbAmInit(iNum := 34,  iDelay := 0, xLatch := 0, xBuzzer := 0, xLock := 0);
-(* Температура 3х щодовой превышена *)
-fbAmInit(iNum := 35,  iDelay := 0, xLatch := 0, xBuzzer := 0, xLock := 0);
+(* --- Общие аварии ---------------------------------------------------- *)
+(* 24 - давление газа ниже SV_GasMinPressure, блокирует *)
+fbAmInit(iNum := 24, iProcess := 10, iDelay := 0,
+         xLatch := 0, xBuzzer := 0, xLock := 1);
+(* 25 - давление подпитки ниже SV_SetMinPressure (запрет насосов) *)
+fbAmInit(iNum := 25, iProcess := 10, iDelay := 0,
+         xLatch := 0, xBuzzer := 0, xLock := 0);
+(* 26 - нет питания ЭКМ *)
+fbAmInit(iNum := 26, iProcess := 10, iDelay := 0,
+         xLatch := 1, xBuzzer := 1, xLock := 1);
+(* 27 - нет питания аварийной кнопки (ES) *)
+fbAmInit(iNum := 27, iProcess := 10, iDelay := 0,
+         xLatch := 0, xBuzzer := 1, xLock := 1);
+(* 28 - нет питания РКФ *)
+fbAmInit(iNum := 28, iProcess := 10, iDelay := 0,
+         xLatch := 0, xBuzzer := 0, xLock := 1);
+(* 29 - нет ни одного доступного котла при пуске *)
+fbAmInit(iNum := 29, iProcess := 10, iDelay := 0,
+         xLatch := 0, xBuzzer := 1, xLock := 1);
+(* 30 - не введены настройки (gxNoSettings), блокирует *)
+fbAmInit(iNum := 30, iProcess := 10, iDelay := 0,
+         xLatch := 0, xBuzzer := 0, xLock := 1);
+(* 31 - ни один насос не запущен, пуск котлов запрещён.
+       Без защёлки, т.к. снимается сама при пуске насоса,
+       но блокирующая - иначе ошибку не видно. *)
+fbAmInit(iNum := 31, iProcess := 10, iDelay := 20,
+         xLatch := 0, xBuzzer := 0, xLock := 1);
+(* 32 - перегрев коллектора. Мягкий лимит: снимает работу ПИД,
+       но не блокирует каскад *)
+fbAmInit(iNum := 32, iProcess := 10, iDelay := 20,
+         xLatch := 0, xBuzzer := 0, xLock := 0);
+(* 33 - давление в системе выше SV_MaxPressure (запрет подпитки) *)
+fbAmInit(iNum := 33, iProcess := 10, iDelay := 20,
+         xLatch := 0, xBuzzer := 0, xLock := 0);
+(* 34 - подпитка не набирает воду за SV_MaxFillTime *)
+fbAmInit(iNum := 34, iProcess := 10, iDelay := 0,
+         xLatch := 0, xBuzzer := 0, xLock := 0);
+(* 35 - температура ГВС выше SV_3WayMaxTemperature *)
+fbAmInit(iNum := 35, iProcess := 10, iDelay := 0,
+         xLatch := 0, xBuzzer := 0, xLock := 0);
 
-
-
-
-
-
-		
