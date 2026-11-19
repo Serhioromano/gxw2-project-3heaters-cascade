@@ -87,13 +87,18 @@ CASE iStep OF
     (* Найти сколько еще нужно включить котлов
     R522 это максимальная задача ПИД регулятора *)
     (* Защита от деления на ноль: если нет ни одного котла в авто
-       (все в ручном, в аварии или запрещены), ступени не добавляем *)
-    iToAdd := SEL(giAvailableStages > 0 , 0, (
-        (* Получаем колличесво шагов *)
-        giPIDTask /
-        (* Получаем велечину шага *)
-        (R522 / giAvailableStages)
-    ) - iCountStages);
+       (все в ручном, в аварии или запрещены) или цена ступени нулевая,
+       ступени не добавляем. Через IF, а не SEL: ST вычисляет все
+       аргументы функции, поэтому деление на 0 всё равно произошло бы *)
+    iToAdd := 0;
+    iStepSize := 0;
+    IF giAvailableStages > 0 THEN
+        iStepSize := R522 / giAvailableStages;
+    END_IF;
+
+    IF iStepSize > 0 THEN
+        iToAdd := (giPIDTask / iStepSize) - iCountStages;
+    END_IF;
 
     iToSubtract := 0;
     IF iToAdd < 0 THEN
