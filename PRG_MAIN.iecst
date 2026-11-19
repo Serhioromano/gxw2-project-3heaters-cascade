@@ -1,6 +1,11 @@
 EI(TRUE);
 
-fbAmBlock(iProcessNum := 10, iSeverity := AM_ERROR);
+(* Шаги селектора ступеней (iStep):
+   0 - инициализация, 1 - промежуточный, 2 - выключить все горелки,
+   3 - ожидание пуска, 4 - расчёт числа ступеней по заданию ПИД,
+   5 - работа (ждём TC13 или отказа котла) *)
+
+fbAmBlock(iProcessNum := 10, iSeverity := c_AM_ERROR);
 
 (*stop s knopki*)
 rst( NOT DI_ES , gxStart );
@@ -9,8 +14,9 @@ rst( NOT DI_ES , gxStart );
 MOV(fbAmBlock.Q AND NOT (iStep = 3), 2, iStep);
 MOV(MEF(gxStart), 2, iStep);
 
-(* Как часто заходить в селектор *)
-OUT_T(iStep = 5, TC13, SV_HowOftenToCheck * 100);
+(* Как часто заходить в селектор. TC13 - таймер с базой 100 мс,
+   SV_HowOftenToCheck задаётся с панели в СЕКУНДАХ, поэтому * 10 *)
+OUT_T(iStep = 5, TC13, SV_HowOftenToCheck * 10);
 
 (* PID for heating *)
 xPIDWork :=
@@ -27,6 +33,7 @@ MOVP(
 RST(xPIDWork AND gxPIDAT, gxPIDAT);
 
 PID(xPIDWork, giTSV, AI_T_Colector, R500, giPIDTask);
+(* Если регулятор не работает, задание на каскад = 0 (все ступени выкл.) *)
 MOV(NOT xPIDWork, 0, giPIDTask);
 
 CASE iStep OF
@@ -79,12 +86,14 @@ CASE iStep OF
 
     (* Найти сколько еще нужно включить котлов
     R522 это максимальная задача ПИД регулятора *)
-    iToAdd := (
+    (* Защита от деления на ноль: если нет ни одного котла в авто
+       (все в ручном, в аварии или запрещены), ступени не добавляем *)
+    iToAdd := SEL(giAvailableStages > 0 , 0, (
         (* Получаем колличесво шагов *)
         giPIDTask /
         (* Получаем велечину шага *)
         (R522 / giAvailableStages)
-    ) - iCountStages;
+    ) - iCountStages);
 
     iToSubtract := 0;
     IF iToAdd < 0 THEN
@@ -198,8 +207,10 @@ fbValve.SV := SEL(gx3WayManual, giPID3WayTask, SV_3WayManualTask);
 fbValve(
     ENABLE := (gxStart AND (DO_Pump1_T1_2 OR DO_Pump2_T1_2)) OR (gx3WayManual),
     DLT := SEL(gx3WayManual, SV_3WayDelta, 0),
+    (* Ход клапана задаётся с панели в СЕКУНДАХ, люфт - в МИЛЛИСЕКУНДАХ.
+       Арифметику делаем в DINT (мс), в TIME переводим только результат *)
     TOTAL_TIME := DINT_TO_TIME(INT_TO_DINT(SV_3WayTotalTime) * 1000),
-    LUFT_TIME := INT_TO_TIME(SV_3WayLuftTime),
+    LUFT_TIME := DINT_TO_TIME(INT_TO_DINT(SV_3WayLuftTime)),
     CLOSE_ON_DISABLE := gx3WayCloseWhenOff,
     IS_OPENED := FALSE,
     IS_CLOSED := FALSE,
@@ -207,12 +218,15 @@ fbValve(
     CLOSE := DO_3wayClose
 );
 
-(* Подпитка *)
+(* Подпитка.
+   Защита от переподпитки действует и в ручном режиме: RST стоит последним,
+   поэтому при давлении выше SV_PresFilStop или аварии 33 клапан закрыт
+   в любом режиме, даже если оператор держит ручную подпитку. *)
 SET(gxFillManual OR (gxFillAuto AND AI_P_Set < SV_PresFilStart), DO_ValveFill);
 RST(
     (NOT gxFillAuto AND NOT gxFillManual)
     OR (AI_P_Set > SV_PresFilStop)
-    OR AM_ISON(AM_ALARMS, 33) (* Alarm pressure *),
+    OR AM_ALARMS[33].Alarm (* Давление в системе выше максимума *),
     DO_ValveFill
 );
 
@@ -225,9 +239,9 @@ END_FOR;
 
 Circulation1(
     ActiveStages := giWorkStages,
-    ActivePupmp1 := gxEnablePump1 AND NOT (AM_ISON(AM_ALARMS, 21) OR AM_ISON(AM_ALARMS, 25)),
-    ActivePupmp2 := gxEnablePump2 AND NOT (AM_ISON(AM_ALARMS, 22) OR AM_ISON(AM_ALARMS, 25)),
-    ActivePupmp3 := gxEnablePump3 AND NOT (AM_ISON(AM_ALARMS, 23) OR AM_ISON(AM_ALARMS, 25)),
+    ActivePupmp1 := gxEnablePump1 AND NOT (AM_ALARMS[21].Alarm OR AM_ALARMS[25].Alarm),
+    ActivePupmp2 := gxEnablePump2 AND NOT (AM_ALARMS[22].Alarm OR AM_ALARMS[25].Alarm),
+    ActivePupmp3 := gxEnablePump3 AND NOT (AM_ALARMS[23].Alarm OR AM_ALARMS[25].Alarm),
     ManualPupmp1 := gxManualPump1,
     ManualPupmp2 := gxManualPump2,
     ManualPupmp3 := gxManualPump3,
@@ -242,8 +256,8 @@ fbPumpsSO(
     EnableP2 := gxPump2_T1_Enable,
     ManualP1 := gxPump1_T1_Manual,
     ManualP2 := gxPump2_T1_Manual,
-    AlarmP1 := AM_ISON(AM_ALARMS, 15) OR AM_ISON(AM_ALARMS, 25),
-    AlarmP2 := AM_ISON(AM_ALARMS, 16) OR AM_ISON(AM_ALARMS, 25),
+    AlarmP1 := AM_ALARMS[15].Alarm OR AM_ALARMS[25].Alarm,
+    AlarmP2 := AM_ALARMS[16].Alarm OR AM_ALARMS[25].Alarm,
     RT := 1_728_000, (* 24 hours in 50ms increments *)
     PUMP1 := DO_Pump1_T1,
     PUMP2 := DO_Pump2_T1
@@ -254,8 +268,8 @@ fbPumpsToTO(
     EnableP2 := gxPump2_T1_2_Enable,
     ManualP1 := gxPump1_T1_2_Manual,
     ManualP2 := gxPump2_T1_2_Manual,
-    AlarmP1 := AM_ISON(AM_ALARMS, 17) OR AM_ISON(AM_ALARMS, 25),
-    AlarmP2 := AM_ISON(AM_ALARMS, 18) OR AM_ISON(AM_ALARMS, 25),
+    AlarmP1 := AM_ALARMS[17].Alarm OR AM_ALARMS[25].Alarm,
+    AlarmP2 := AM_ALARMS[18].Alarm OR AM_ALARMS[25].Alarm,
     RT := 1_728_000, (* 24 hours in 50ms increments *)
     PUMP1 := DO_Pump1_T1_2,
     PUMP2 := DO_Pump2_T1_2
@@ -266,8 +280,8 @@ fbPumpsFromTO(
     EnableP2 := gxPump2_T3_Enable,
     ManualP1 := gxPump1_T3_Manual,
     ManualP2 := gxPump2_T3_Manual,
-    AlarmP1 := AM_ISON(AM_ALARMS, 19),
-    AlarmP2 := AM_ISON(AM_ALARMS, 20),
+    AlarmP1 := AM_ALARMS[19].Alarm,
+    AlarmP2 := AM_ALARMS[20].Alarm,
     RT := 1_728_000, (* 24 hours in 50ms increments *)
     PUMP1 := DO_Pump1_T3,
     PUMP2 := DO_Pump2_T3

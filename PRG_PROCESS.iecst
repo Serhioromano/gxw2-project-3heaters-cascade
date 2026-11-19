@@ -1,3 +1,16 @@
+(* ==========================================================================
+   PRG_PROCESS - обработка входов, аварий, состояний и моточасов.
+   Карта аналоговых входов (модули Coolmay, R-регистры):
+     R23700..R23702 - температура котлов 1..3 (Pt100, 0.1 C)
+     R23703 - обратка отопления, R23705 - подача отопления
+     R23704 - подача на котлы (коллектор), R23706/R23707 - теплообменник
+     R23708 - температура наружного воздуха, R23709 - температура газа
+     R23712..R23714 - давление котлов 1..3, R23715 - подача во внешнюю систему
+     R23716 - обратка внешняя, R23717/R23718 - теплообменник
+     R23719 - давление коллектора первичного контура (подпитка)
+     D8032 - давление газа (встроенный вход модуля)
+   Cor_* - поправки датчиков, задаются с панели.
+   ========================================================================== *)
 EI(TRUE);
 
 AI_T_Heater1 := R23700 + Cor_T_Heater1;
@@ -47,47 +60,25 @@ T1_State := HEATER_STATE(arBurners[0]);
 T2_State := HEATER_STATE(arBurners[1]);
 T3_State := HEATER_STATE(arBurners[2]);
 
-Pump1_T1_State := PUMP_STATE(
-    DO_Pump1_T1, 
-    AM_ISON(AM_ALARMS, 15), 
-    gxPump1_T1_Enable
-);
-Pump2_T1_State := PUMP_STATE(
-    DO_Pump2_T1, 
-    AM_ISON(AM_ALARMS, 16), 
-    gxPump2_T1_Enable
-);
-Pump1_T1_2_State := PUMP_STATE(
-    DO_Pump1_T1_2, 
-    AM_ISON(AM_ALARMS, 17), 
-    gxPump1_T1_2_Enable
-);
-Pump2_T1_2_State := PUMP_STATE(
-    DO_Pump2_T1_2, 
-    AM_ISON(AM_ALARMS, 18), 
-    gxPump2_T1_2_Enable
-);
-Pump1_T3_State := PUMP_STATE(
-    DO_Pump1_T3, 
-    AM_ISON(AM_ALARMS, 19), 
-    gxPump1_T3_Enable
-);
-Pump2_T3_State := PUMP_STATE(
-    DO_Pump2_T3, 
-    AM_ISON(AM_ALARMS, 20), 
-    gxPump2_T3_Enable
-);
-Pump1_State := PUMP_STATE(DO_Pump1, AM_ISON(AM_ALARMS, 21), gxEnablePump1);
-Pump2_State := PUMP_STATE(DO_Pump2, AM_ISON(AM_ALARMS, 22), gxEnablePump2);
-Pump3_State := PUMP_STATE(DO_Pump3, AM_ISON(AM_ALARMS, 23), gxEnablePump3);
+(* Состояние насоса для панели: 0 - выкл, 1 - работает, 2 - авария,
+   4 - запрещён. Второй параметр - признак аварии насоса из менеджера тревог *)
+Pump1_T1_State := PUMP_STATE(DO_Pump1_T1, AM_ALARMS[15].Alarm, gxPump1_T1_Enable);
+Pump2_T1_State := PUMP_STATE(DO_Pump2_T1, AM_ALARMS[16].Alarm, gxPump2_T1_Enable);
+Pump1_T1_2_State := PUMP_STATE(DO_Pump1_T1_2, AM_ALARMS[17].Alarm, gxPump1_T1_2_Enable);
+Pump2_T1_2_State := PUMP_STATE(DO_Pump2_T1_2, AM_ALARMS[18].Alarm, gxPump2_T1_2_Enable);
+Pump1_T3_State := PUMP_STATE(DO_Pump1_T3, AM_ALARMS[19].Alarm, gxPump1_T3_Enable);
+Pump2_T3_State := PUMP_STATE(DO_Pump2_T3, AM_ALARMS[20].Alarm, gxPump2_T3_Enable);
+Pump1_State := PUMP_STATE(DO_Pump1, AM_ALARMS[21].Alarm, gxEnablePump1);
+Pump2_State := PUMP_STATE(DO_Pump2, AM_ALARMS[22].Alarm, gxEnablePump2);
+Pump3_State := PUMP_STATE(DO_Pump3, AM_ALARMS[23].Alarm, gxEnablePump3);
 
 IF AI_T_Wather <= SV_TWather1 THEN
 	giTSV := SV_TWater1;
 ELSIF AI_T_Wather <= SV_TWather2 THEN
 	giTSV := SCALE(AI_T_Wather, SV_TWather1, SV_TWather2, SV_TWater1, SV_TWater2);
-ELSIF AI_T_Wather <= SV_TWather3 THEN 
+ELSIF AI_T_Wather <= SV_TWather3 THEN
 	giTSV := SCALE(AI_T_Wather, SV_TWather2, SV_TWather3, SV_TWater2, SV_TWater3);
-ELSIF AI_T_Wather <= SV_TWather4 THEN 
+ELSIF AI_T_Wather <= SV_TWather4 THEN
 	giTSV := SCALE(AI_T_Wather, SV_TWather3, SV_TWather4, SV_TWater3, SV_TWater4);
 ELSE
 	giTSV := SV_TWater4;
@@ -97,10 +88,10 @@ fbAmSet(iNum := 0, xState := AI_T_Heater1 > SV_MaxTemperatureHeater);
 fbAmSet(iNum := 1, xState := AI_P1 > SV_MaxPressure);
 fbAmSet(iNum := 2, xState := AI_P1 < SV_MinPressure);
 fbAmSet(iNum := 3, xState := DI_BurnAlarm1);
-fbAmHasAlarm(iSeverity := AM_ERROR, iProcessNum := 1);
-arBurners[0].Error := fbAmHasAlarm.Q; 
-arBurners[0].Manual:= arBurners[0].Manual OR arBurners[0].ManualSecond;
-(*arBurners[0].Work := DI_BurnWork1;*)
+fbAmHasAlarm(iSeverity := c_AM_ERROR, iProcessNum := 1);
+arBurners[0].Error := fbAmHasAlarm.Q;
+arBurners[0].Manual := arBurners[0].Manual OR arBurners[0].ManualSecond;
+arBurners[0].Work := DI_BurnWork1;
 arBurners[0].Temperature := AI_T_Heater1;
 arBurners[0].Pressure := AI_P1;
 DO_Burn1Power := arBurners[0].Power;
@@ -108,12 +99,12 @@ DO_Burn1Stage1 := arBurners[0].Stage1;
 DO_Burn1Stage2 := arBurners[0].Stage2;
 
 fbAmSet(iNum := 5, xState := AI_T_Heater2 > SV_MaxTemperatureHeater);
-fbAmSet(iNum := 6, xState := AI_P1 > SV_MaxPressure);
-fbAmSet(iNum := 7, xState := AI_P1 < SV_MinPressure);
+fbAmSet(iNum := 6, xState := AI_P2 > SV_MaxPressure);
+fbAmSet(iNum := 7, xState := AI_P2 < SV_MinPressure);
 fbAmSet(iNum := 8, xState := DI_BurnAlarm2);
-fbAmHasAlarm(iSeverity := AM_ERROR, iProcessNum := 2);
+fbAmHasAlarm(iSeverity := c_AM_ERROR, iProcessNum := 2);
 arBurners[1].Error := fbAmHasAlarm.Q;
-arBurners[1].Manual:= arBurners[1].Manual OR arBurners[1].ManualSecond;
+arBurners[1].Manual := arBurners[1].Manual OR arBurners[1].ManualSecond;
 arBurners[1].Work := DI_BurnWork2;
 arBurners[1].Temperature := AI_T_Heater2;
 arBurners[1].Pressure := AI_P2;
@@ -122,18 +113,18 @@ DO_Burn2Stage1 := arBurners[1].Stage1;
 DO_Burn2Stage2 := arBurners[1].Stage2;
 
 fbAmSet(iNum := 10, xState := AI_T_Heater3 > SV_MaxTemperatureHeater);
-fbAmSet(iNum := 11, xState := AI_P1 > SV_MaxPressure);
-fbAmSet(iNum := 12, xState := AI_P1 < SV_MinPressure);
+fbAmSet(iNum := 11, xState := AI_P3 > SV_MaxPressure);
+fbAmSet(iNum := 12, xState := AI_P3 < SV_MinPressure);
 fbAmSet(iNum := 13, xState := DI_BurnAlarm3);
-fbAmHasAlarm(iSeverity := AM_ERROR, iProcessNum := 3);
+fbAmHasAlarm(iSeverity := c_AM_ERROR, iProcessNum := 3);
 arBurners[2].Error := fbAmHasAlarm.Q;
-arBurners[2].Manual:= arBurners[2].Manual OR arBurners[2].ManualSecond;
+arBurners[2].Manual := arBurners[2].Manual OR arBurners[2].ManualSecond;
 arBurners[2].Work := DI_BurnWork3;
 arBurners[2].Temperature := AI_T_Heater3;
 arBurners[2].Pressure := AI_P3;
 DO_Burn3Power := arBurners[2].Power;
 DO_Burn3Stage1 := arBurners[2].Stage1;
-DO_Burn3Stage2 := arBurners[2].Stage2;           
+DO_Burn3Stage2 := arBurners[2].Stage2;
 
 (* DO_Pump1_T1 *)
 fbAmSet(iNum := 15, xState := DO_Pump1_T1 AND NOT DI_Pump1_T1);
@@ -158,8 +149,8 @@ iAvailable := 0;
 FOR iCount := 0 TO c_HEATERS_IDX DO
     INC(
     	(arBurners[iCount].Auto OR arBurners[iCount].Manual)
-    	AND NOT arBurners[iCount].Error 
-    	AND arBurners[iCount].Enable, 
+    	AND NOT arBurners[iCount].Error
+    	AND arBurners[iCount].Enable,
     	iAvailable
     );
 END_FOR;
@@ -170,23 +161,43 @@ fbAmSet(iNum := 26, xState := NOT DI_EKM);
 fbAmSet(iNum := 27, xState := NOT DI_ES);
 fbAmSet(iNum := 28, xState := NOT DI_RKF);
 fbAmSet(iNum := 29, xState := gxStart AND iAvailable = 0);
-fbAmSet(iNum := 30, xState := gxNoSettings);	
+fbAmSet(iNum := 30, xState := gxNoSettings);
 
-fbAmSet(iNum := 31, xState := giWorkStages > 0 AND NOT (DO_Pump1 OR DO_Pump2 OR DO_Pump3));	
+(* 31 - пуск котлов запрещён, пока не запущен хотя бы один насос.
+   Проверяем ДО пуска (по gxStart), иначе первый цикл котлы включаются
+   раньше насосов. Авария без защёлки и блокирующая (xLock = 1). *)
+fbAmSet(iNum := 31, xState := gxStart AND NOT (DO_Pump1 OR DO_Pump2 OR DO_Pump3));
 
-fbAmSet(iNum := 32, xState := AI_T_Colector > SV_MaxTemperatureColector);	
+fbAmSet(iNum := 32, xState := AI_T_Colector > SV_MaxTemperatureColector);
 
-fbAmSet(iNum := 33, xState := AI_P_Set > SV_MaxPressure);	
+fbAmSet(iNum := 33, xState := AI_P_Set > SV_MaxPressure);
 
 OUT_T(DO_ValveFill, TC12, SV_MaxFillTime * 10);
-fbAmSet(iNum := 34, xState := TS12);	
+fbAmSet(iNum := 34, xState := TS12);
 
-fbAmSet(iNum := 35, xState := AI_T_GVSFrom > SV_3WayMaxTemperature);	
+fbAmSet(iNum := 35, xState := AI_T_GVSFrom > SV_3WayMaxTemperature);
 
-fbAMPack(DNUM := 590, PD := AM_PACK_D);
+(* 4, 9, 14 - термозащита котлов: авария, если пропал контакт (X035..X037).
+   Номера взяты из резервных слотов групп котлов, поэтому тревога
+   выводит из каскада только свой котёл, а упаковка для панели
+   остаётся в трёх регистрах D590..D592 (биты 590.4 / 590.9 / 590.14) *)
+fbAmSet(iNum := 4, xState := NOT DI_BurnTherm1);
+fbAmSet(iNum := 9, xState := NOT DI_BurnTherm2);
+fbAmSet(iNum := 14, xState := NOT DI_BurnTherm3);
 
-gxHasalarm := ((D590+D591+D592) <> 0);
+fbAMPack(DNUM := 530, PD := c_AM_PACK_M);
 
+(* Наличие любой аварии берём у менеджера тревог, а не суммой D590..D592:
+   сумма 16-битная и могла переполниться в 0 *)
+fbAmHasAny(iProcessNum := 0, iSeverity := 0);
+gxHasalarm := fbAmHasAny.Q;
+DO_AlarmLight := gxHasalarm;
+
+(* Настройки считаются введёнными, если заполнены уставки и коэффициенты ПИД.
+   R503 входит в блок параметров ПИД (R500..R528) и задаётся с панели:
+   если он 0, значит коэффициенты регулятора не введены.
+   Расчёт идёт ниже вызова fbAmSet(30) намеренно: авария реагирует
+   с задержкой в один цикл, это допустимо. *)
 gxNoSettings := (R503 = 0)
 	OR (SV_TLimit = 0)
 	OR (SV_MaxPressure = 0)
@@ -202,17 +213,17 @@ gxNoSettings := (R503 = 0)
 	OR (SV_TWater4 = 0)
 	OR (SV_GasMinPressure = 0)
 	OR (SV_SetMinPressure = 0)
-    OR (SV_3WayTempGVS = 0)
-    OR (SV_HowOftenToCheck = 0)
-    OR (SV_PresFilStart = 0)
-    OR (SV_PresFilStop = 0)
-    OR (SV_MaxFillTime = 0)
-    OR (SV_3WayDelta = 0)
-    OR (SV_3WayTotalTime = 0)
-    OR (SV_3WayLuftTime = 0)
-    OR (SV_3WayTempGVSDelta = 0)
-    OR (SV_3WayManualTask = 0)
-    OR (Max_P1 = 0)
+   OR (SV_3WayTempGVS = 0)
+   OR (SV_HowOftenToCheck = 0)
+   OR (SV_PresFilStart = 0)
+   OR (SV_PresFilStop = 0)
+   OR (SV_MaxFillTime = 0)
+   OR (SV_3WayDelta = 0)
+   OR (SV_3WayTotalTime = 0)
+   OR (SV_3WayLuftTime = 0)
+   OR (SV_3WayTempGVSDelta = 0)
+   OR (SV_3WayManualTask = 0)
+   OR (Max_P1 = 0)
 	OR (Max_P2 = 0)
 	OR (Max_P3 = 0)
 	OR (Max_P_SOTo = 0)
@@ -221,38 +232,44 @@ gxNoSettings := (R503 = 0)
 	OR (Max_P_GVSFrom = 0)
 	OR (Max_P_Set = 0)
 	OR (Max_P_GAZ = 0)
-    OR (SV_3WayMaxTemperature = 0)
-    OR (SV_MaxTemperatureColector = 0)
-    ;	
-fbAmReset(IN:=gxErrorReset);
+   OR (SV_3WayMaxTemperature = 0)
+   OR (SV_MaxTemperatureColector = 0)
+    ;
+(* Сброс аварий. IN - IN_OUT: блок держит импульс сброса 500 мс и сам гасит
+   сигнал, отдельный RST не нужен. AutoReset - время автосброса защёлкнутых
+   аварий в секундах (0 - выключено); работает только для тех аварий, у которых
+   в FB_AM_INIT задано xAutoReset := TRUE *)
+fbAmReset(IN := gxErrorReset, AutoReset := 20);
 
-fbAMBuzzer();
-SET(fbAMBuzzer.AC > giBuzzer, DO_AlarmBuzzer);
-giBuzzer := fbAMBuzzer.AC;
-RST(gxResetAlarm OR gxErrorReset OR DI_AlarmReset, DO_AlarmBuzzer);
-DO_AlarmLight := gxHasalarm;
+(* Сирена. Блок сам защёлкивает Q, когда звуковых аварий стало больше,
+   и снимает его по входу Reset, поэтому SET/RST не нужны.
+   Reset - IN_OUT, в него можно передать только метку, поэтому кнопки сброса
+   сводим в одну переменную *)
+xBuzzerReset := gxResetAlarm OR gxErrorReset OR DI_AlarmReset;
+fbAMBuzzer(Reset := xBuzzerReset, Q := DO_AlarmBuzzer);
 
-HOUR(DO_Burn1Stage1, K32000, giHeater1Hours, M0);
+(* Моточасы. У каждого счётчика свой флаг переполнения *)
+HOUR(DO_Burn1Stage1, K32000, giHeater1Hours, gxWHOvfHeater1);
 IF gxResetWHT1 THEN giHeater1Hours[0] := 0; giHeater1Hours[1] := 0; END_IF;
-HOUR(DO_Burn2Stage1, K32000, giHeater2Hours, M0);
+HOUR(DO_Burn2Stage1, K32000, giHeater2Hours, gxWHOvfHeater2);
 IF gxResetWHT2 THEN giHeater2Hours[0] := 0; giHeater2Hours[1] := 0; END_IF;
-HOUR(DO_Burn2Stage1, K32000, giHeater3Hours, M0);
+HOUR(DO_Burn3Stage1, K32000, giHeater3Hours, gxWHOvfHeater3);
 IF gxResetWHT3 THEN giHeater3Hours[0] := 0; giHeater3Hours[1] := 0; END_IF;
-HOUR(DO_Pump1_T1, K32000, Pump1_T1_WH, M0);
+HOUR(DO_Pump1_T1, K32000, Pump1_T1_WH, gxWHOvfPump1_T1);
 IF gxPump1_T1_WHReset THEN Pump1_T1_WH[0] := 0; Pump1_T1_WH[1] := 0; END_IF;
-HOUR(DO_Pump2_T1, K32000, Pump2_T1_WH, M0);
+HOUR(DO_Pump2_T1, K32000, Pump2_T1_WH, gxWHOvfPump2_T1);
 IF gxPump2_T1_WHReset THEN Pump2_T1_WH[0] := 0; Pump2_T1_WH[1] := 0; END_IF;
-HOUR(DO_Pump1_T1_2, K32000, Pump1_T1_2_WH, M0);
+HOUR(DO_Pump1_T1_2, K32000, Pump1_T1_2_WH, gxWHOvfPump1_T1_2);
 IF gxPump1_T1_2_WHReset THEN Pump1_T1_2_WH[0] := 0; Pump1_T1_2_WH[1] := 0; END_IF;
-HOUR(DO_Pump2_T1_2, K32000, Pump2_T1_2_WH, M0);
+HOUR(DO_Pump2_T1_2, K32000, Pump2_T1_2_WH, gxWHOvfPump2_T1_2);
 IF gxPump2_T1_2_WHReset THEN Pump2_T1_2_WH[0] := 0; Pump2_T1_2_WH[1] := 0; END_IF;
-HOUR(DO_Pump1_T3, K32000, Pump1_T3_WH, M0);
+HOUR(DO_Pump1_T3, K32000, Pump1_T3_WH, gxWHOvfPump1_T3);
 IF gxPump1_T3_WHReset THEN Pump1_T3_WH[0] := 0; Pump1_T3_WH[1] := 0; END_IF;
-HOUR(DO_Pump2_T3, K32000, Pump2_T3_WH, M0);
+HOUR(DO_Pump2_T3, K32000, Pump2_T3_WH, gxWHOvfPump2_T3);
 IF gxPump2_T3_WHReset THEN Pump2_T3_WH[0] := 0; Pump2_T3_WH[1] := 0; END_IF;
-HOUR(DO_Pump1, K32000, Pump1_WH, M0);
+HOUR(DO_Pump1, K32000, Pump1_WH, gxWHOvfPump1);
 IF gxPump1_WHReset THEN Pump1_WH[0] := 0; Pump1_WH[1] := 0; END_IF;
-HOUR(DO_Pump2, K32000, Pump2_WH, M0);
+HOUR(DO_Pump2, K32000, Pump2_WH, gxWHOvfPump2);
 IF gxPump2_WHReset THEN Pump2_WH[0] := 0; Pump2_WH[1] := 0; END_IF;
-HOUR(DO_Pump3, K32000, Pump3_WH, M0);
+HOUR(DO_Pump3, K32000, Pump3_WH, gxWHOvfPump3);
 IF gxPump3_WHReset THEN Pump3_WH[0] := 0; Pump3_WH[1] := 0; END_IF;
