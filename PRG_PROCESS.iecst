@@ -22,7 +22,7 @@ AI_T_SOTo := R23705 + Cor_T_SOTo;
 AI_T_GVSTo := R23706 + Cor_T_GVSTo;
 AI_T_GVSFrom := R23707 + Cor_T_GVSFrom;
 AI_T_Gaz := R23709 + Cor_T_Gaz;
-AI_T_Wather := R23708 + Cor_T_Wather;
+AI_T_Weather := R23708 + Cor_T_Weather;
 
 AI_P1 := F_SCALE(R23712, 0, 32766, 0, Max_P1, FALSE);
 AI_P2 := F_SCALE(R23713, 0, 32766, 0, Max_P2, FALSE);
@@ -43,7 +43,7 @@ FAI_T_SOTo := INT_TO_REAL(AI_T_SOTo) / 10.0;
 FAI_T_GVSTo := INT_TO_REAL(AI_T_GVSTo) / 10.0;
 FAI_T_GVSFrom := INT_TO_REAL(AI_T_GVSFrom) / 10.0;
 FAI_T_Gaz := INT_TO_REAL(AI_T_Gaz) / 10.0;
-FAI_T_Wather := INT_TO_REAL(AI_T_Wather) / 10.0;
+FAI_T_Weather := INT_TO_REAL(AI_T_Weather) / 10.0;
 
 FAI_P1 := INT_TO_REAL(AI_P1) / 10.0;
 FAI_P2 := INT_TO_REAL(AI_P2) / 10.0;
@@ -72,14 +72,14 @@ Pump1_State := PUMP_STATE(DO_Pump1, AM_ALARMS[21].Alarm, gxEnablePump1);
 Pump2_State := PUMP_STATE(DO_Pump2, AM_ALARMS[22].Alarm, gxEnablePump2);
 Pump3_State := PUMP_STATE(DO_Pump3, AM_ALARMS[23].Alarm, gxEnablePump3);
 
-IF AI_T_Wather <= SV_TWather1 THEN
+IF AI_T_Weather <= SV_TWeather1 THEN
 	giTSV := SV_TWater1;
-ELSIF AI_T_Wather <= SV_TWather2 THEN
-	giTSV := F_SCALE(AI_T_Wather, SV_TWather1, SV_TWather2, SV_TWater1, SV_TWater2, FALSE);
-ELSIF AI_T_Wather <= SV_TWather3 THEN
-	giTSV := F_SCALE(AI_T_Wather, SV_TWather2, SV_TWather3, SV_TWater2, SV_TWater3, FALSE);
-ELSIF AI_T_Wather <= SV_TWather4 THEN
-	giTSV := F_SCALE(AI_T_Wather, SV_TWather3, SV_TWather4, SV_TWater3, SV_TWater4, FALSE);
+ELSIF AI_T_Weather <= SV_TWeather2 THEN
+	giTSV := F_SCALE(AI_T_Weather, SV_TWeather1, SV_TWeather2, SV_TWater1, SV_TWater2, FALSE);
+ELSIF AI_T_Weather <= SV_TWeather3 THEN
+	giTSV := F_SCALE(AI_T_Weather, SV_TWeather2, SV_TWeather3, SV_TWater2, SV_TWater3, FALSE);
+ELSIF AI_T_Weather <= SV_TWeather4 THEN
+	giTSV := F_SCALE(AI_T_Weather, SV_TWeather3, SV_TWeather4, SV_TWater3, SV_TWater4, FALSE);
 ELSE
 	giTSV := SV_TWater4;
 END_IF;
@@ -203,13 +203,13 @@ gxNoSettings := (R503 = 0)
 	OR (SV_MaxPressure = 0)
 	OR (SV_MinPressure = 0)
 	OR (SV_MaxTemperatureHeater = 0)
-	OR (SV_TWather1 = 0)
+	OR (SV_TWeather1 = 0)
+	OR (SV_TWeather2 = 0)
+	OR (SV_TWeather3 = 0)
+	OR (SV_TWeather4 = 0)
 	OR (SV_TWater1 = 0)
-	OR (SV_TWather2 = 0)
 	OR (SV_TWater2 = 0)
-	OR (SV_TWather3 = 0)
 	OR (SV_TWater3 = 0)
-	OR (SV_TWather4 = 0)
 	OR (SV_TWater4 = 0)
 	OR (SV_GasMinPressure = 0)
 	OR (SV_SetMinPressure = 0)

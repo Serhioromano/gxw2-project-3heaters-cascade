@@ -88,22 +88,42 @@ CASE iStep OF
     R522 это максимальная задача ПИД регулятора *)
     (* Защита от деления на ноль: если нет ни одного котла в авто
        (все в ручном, в аварии или запрещены) или цена ступени нулевая,
-       ступени не добавляем. Через IF, а не SEL: ST вычисляет все
-       аргументы функции, поэтому деление на 0 всё равно произошло бы *)
-    iToAdd := 0;
+       шаг не считаем. Через IF, а не SEL: ST вычисляет все аргументы
+       функции, поэтому деление на 0 всё равно произошло бы *)
+    (* R522 - верхний предел выхода ПИД из блока параметров R500..R528
+       (600 = 100 %). Копируем в именованную переменную, чтобы ниже
+       не было "магического" номера регистра *)
+    iPIDMax := R522;
     iStepSize := 0;
     IF giAvailableStages > 0 THEN
-        iStepSize := R522 / giAvailableStages;
+        iStepSize := iPIDMax / giAvailableStages;
     END_IF;
 
-    IF iStepSize > 0 THEN
-        iToAdd := (giPIDTask / iStepSize) - iCountStages;
+    (* ДОБАВЛЕНИЕ: не больше одной ступени за период проверки, чтобы мощность
+       росла плавно. Ступень включается только если ПИД вышел за границу
+       следующей ступени на SV_StageHyst, иначе на самой границе ступень
+       дёргалась бы каждый период. У последней доступной ступени гистерезис
+       не применяется (порог ограничен R522), иначе она не включилась бы
+       никогда *)
+    iToAdd := 0;
+    IF iStepSize > 0 AND iCountStages < giAvailableStages THEN
+        iAddLimit := ((iCountStages + 1) * iStepSize) + SV_StageHyst;
+        IF iAddLimit > iPIDMax THEN
+            iAddLimit := iPIDMax;
+        END_IF;
+        IF giPIDTask >= iAddLimit THEN
+            iToAdd := 1;
+        END_IF;
     END_IF;
 
+    (* УБАВЛЕНИЕ: снимаем сразу столько ступеней, сколько требует ПИД.
+       Снижение мощности не задерживается никогда - опасен перегрев *)
     iToSubtract := 0;
-    IF iToAdd < 0 THEN
-        iToSubtract := ABS(iToAdd);
-        iToAdd := 0;
+    IF iStepSize > 0 THEN
+        iToSubtract := iCountStages - (giPIDTask / iStepSize);
+        IF iToSubtract < 0 THEN
+            iToSubtract := 0;
+        END_IF;
     END_IF;
 
     IF iToAdd > 0 THEN
