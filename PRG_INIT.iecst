@@ -1,0 +1,134 @@
+EI(TRUE);
+(* Init PID *) (* Настройка параметров ПИД регулирования *)
+R500 := 100; (* Time 1c *)
+R501 := 2#0000_0000_0000_0001; (* Heating mode *)
+R522 := 600; (* Output max 100% *)
+R523 := 0; (* Output min *)
+R525 := 5; (* Delta for Autotune 0.5 bar *)
+R526 := R522; (* Autotune output upper value *)
+R527 := 0; (* Autotune output lower value *)
+
+(* Init PID *) (* Настройка параметров ПИД регулирования *)
+R600 := 100; (* Time 1c *)
+R601 := 2#0000_0000_0000_0001; (* Heating mode *)
+R622 := 1000; (* Output max 100% *)
+R623 := 0; (* Output min *)
+R625 := 5; (* Delta for Autotune 0.5 bar *)
+R626 := R622; (* Autotune output upper value *)
+R627 := 0; (* Autotune output lower value *)
+
+AM_ALARMS_NUM := 34;
+(*AM_D_START := 3000;*)
+
+MOV(Max_P2 = 0, 160, Max_P2);
+MOV(Max_P3 = 0, 160, Max_P3);
+MOV(Max_P1 = 0, 160, Max_P1);
+MOV(Max_P_SOTo = 0, 160, Max_P_SOTo);
+MOV(Max_P_SOFrom = 0, 160, Max_P_SOFrom);
+MOV(Max_P_GVSTo = 0, 160, Max_P_GVSTo);
+MOV(Max_P_GVSFrom = 0, 160, Max_P_GVSFrom);
+MOV(Max_P_Set = 0, 160, Max_P_Set);
+MOV(Max_P_GAZ = 0, 160, Max_P_GAZ);
+
+D8000 := 500; (*Watch dog timer*)
+
+(* Входи РТ100 *)
+R23500 := 0;
+R23501 := 0;
+R23502 := 0;
+R23503 := 0;
+R23504 := 0;
+R23505 := 0;
+R23506 := 0;
+R23507 := 0;
+R23508 := 0;
+R23509 := 0;
+(* Входы 4-20мА *)
+R23512 := 1;
+R23513 := 1;
+R23514 := 1;
+R23515 := 1;
+R23516 := 1;
+R23517 := 1;
+R23518 := 1;
+R23519 := 1;
+R23520 := 1;
+(* Входы на ПЛК *)
+R23940 := 0;
+R23941 := 0;
+R23942 := 1;
+R23943 := 1;
+
+fbAmInit.iSeverity := AM_ERROR;
+
+(* Burner 1 Sensor, Alarm, Temperature, Pressure *)
+fbAmInit(iNum := 0, iProcess := 1,
+                    xLatch := 1, xBuzzer := 1, xLock := 0); (* Temperature *)
+fbAmInit(iNum := 1, xLatch := 0); (* max Pressure *)
+fbAmInit(iNum := 2, xLatch := 0); (* min Pressure *)
+fbAmInit(iNum := 3, xLatch := 1); (* Burner alarm *)
+
+(* Burner 2 Sensor, Alarm, Temperature, Pressure *)
+fbAmInit(iNum := 5, iProcess := 2,
+                    xLatch := 1, xBuzzer := 1, xLock := 0); (* Temperature *)
+fbAmInit(iNum := 6, xLatch := 0); (* max Pressure *)
+fbAmInit(iNum := 7, xLatch := 0); (* min Pressure *)
+fbAmInit(iNum := 8, xLatch := 1); (* Burner alarm *)
+
+(* Burner 3 Sensor, Alarm, Temperature, Pressure *)
+fbAmInit(iNum := 10, iProcess := 3,
+                    xLatch := 1, xBuzzer := 1, xLock := 0); (* Temperature *)
+fbAmInit(iNum := 11, xLatch := 0); (* max Pressure *)
+fbAmInit(iNum := 12, xLatch := 0); (* min Pressure *)
+fbAmInit(iNum := 13, xLatch := 1); (* Burner alarm *)
+
+(* DO_Pump1_T1 *)
+fbAmInit(iNum := 15, iDelay := 20, iProcess := 7, xLatch := 1, xBuzzer := 1, xLock := 0);
+(* DO_Pump2_T1 *)
+fbAmInit(iNum := 16);
+(* DO_Pump1_T1_2 *)
+fbAmInit(iNum := 17);
+(* DO_Pump2_T1_2 *)
+fbAmInit(iNum := 18);
+(* DO_Pump1_T3 *)
+fbAmInit(iNum := 19);
+(* DO_Pump2_T3 *)
+fbAmInit(iNum := 20);
+(* DO_Pump1 *)
+fbAmInit(iNum := 21);
+(* DO_Pump2 *)
+fbAmInit(iNum := 22);
+(* DO_Pump3 *)
+fbAmInit(iNum := 23);
+
+(* Pressure gaz low *)
+fbAmInit(iNum := 24, iDelay := 0, iProcess := 10, xLatch := 0, xBuzzer := 0, xLock := 1);
+(* Pressure set low *)
+fbAmInit(iNum := 25, xLatch := 0, xBuzzer := 0, xLock := 0);
+(* EKM *)
+fbAmInit(iNum := 26, xLatch := 1, xBuzzer := 1, xLock := 1);
+(* ES *)
+fbAmInit(iNum := 27, xLatch := 0, xBuzzer := 1);
+(* RKF *)
+fbAmInit(iNum := 28, xLatch := 0, xBuzzer := 0);
+(* no available pumps *)
+fbAmInit(iNum := 29, xLatch := 0, xBuzzer := 1);
+(* no settings*)
+fbAmInit(iNum := 30, xLatch := 0, xBuzzer := 0);
+(* no pumps *)
+fbAmInit(iNum := 31, iDelay := 20, xLatch := 0, xBuzzer := 0,  xLock := 1); (*inache oshibcu ne vidno samosbrasivaetsya*)
+(* Max temperature *)
+fbAmInit(iNum := 32, xLatch := 0, xBuzzer := 0, xLock := 0);
+(* Max pressure *)
+fbAmInit(iNum := 33, xLatch := 0, xBuzzer := 0);
+(* время набра воды *)
+fbAmInit(iNum := 34,  iDelay := 0, xLatch := 0, xBuzzer := 0, xLock := 0);
+(* Температура 3х щодовой превышена *)
+fbAmInit(iNum := 35,  iDelay := 0, xLatch := 0, xBuzzer := 0, xLock := 0);
+
+
+
+
+
+
+		

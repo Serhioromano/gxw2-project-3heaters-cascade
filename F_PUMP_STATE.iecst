@@ -1,0 +1,5 @@
+PUMP_STATE := SEL(
+	PumpAlarm, 
+	SEL(PumpEnable, 4, SEL(PumpDO, 0, 1)), 
+	2
+);

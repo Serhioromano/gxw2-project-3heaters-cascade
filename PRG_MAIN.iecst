@@ -1,0 +1,274 @@
+EI(TRUE);
+
+fbAmBlock(iProcessNum := 10, iSeverity := AM_ERROR);
+
+(*stop s knopki*)
+rst( NOT DI_ES , gxStart );
+
+(* Если общий блок то выключаем все горелки *)
+MOV(fbAmBlock.Q AND NOT (iStep = 3), 2, iStep);
+MOV(MEF(gxStart), 2, iStep);
+
+(* Как часто заходить в селектор *)
+OUT_T(iStep = 5, TC13, SV_HowOftenToCheck * 100);
+
+(* PID for heating *)
+xPIDWork :=
+    (iStep = 4 OR iStep = 5)
+    AND (AI_T_Colector < (giTSV + SV_TLimit))
+    AND NOT fbAmBlock.Q;
+(* Если включена автонастройка ПИД то активируем *)
+MOVP(
+    xPIDWork AND gxPIDAT,
+    SEL(gxPIDATLimitCycle, 2#0000_0000_0011_0001, 2#0000_0000_0111_0001),
+    R501
+);
+(* Если начали Автонастроку то отключаем этот параметр *)
+RST(xPIDWork AND gxPIDAT, gxPIDAT);
+
+PID(xPIDWork, giTSV, AI_T_Colector, R500, giPIDTask);
+MOV(NOT xPIDWork, 0, giPIDTask);
+
+CASE iStep OF
+0: (* Init *)
+    gxStart := 0;
+    gxErrorReset := TRUE;
+    iStep := 1;
+1:
+    iStep := 2;
+2: (* Сброс при блокировке работы *)
+    FOR iCount := 0 TO c_HEATERS_IDX DO
+        arBurners[iCount].Power := FALSE;
+        arBurners[iCount].Stage1 := FALSE;
+        arBurners[iCount].Stage2 := FALSE;
+    END_FOR;
+
+    iStep := 3;
+
+3: (* idle *)
+    IF gxStart AND NOT fbAmBlock.Q THEN
+        (* Смещаем индекс основной котел 0-5 для 6ти котолов *)
+        (* TODO: смещение раз в неделю добавить *)
+        iShifter := INCN(TRUE, iShifter, c_HEATERS_IDX);
+        iStep := 4;
+    END_IF;
+
+4: (* select *)
+    iCountStages := 0; (* Текущие ступени в авто *)
+    giAvailableStages := 0; (* Всего доступно ступеней в авто *)
+    FOR iCount := 0 TO c_HEATERS_IDX DO
+        arBurners[iCount].Power := (
+            arBurners[iCount].Auto OR arBurners[iCount].Manual
+        ) AND NOT arBurners[iCount].Error AND arBurners[iCount].Enable;
+
+        IF arBurners[iCount].Manual AND arBurners[iCount].Power THEN
+            (* Когда включаем в ручно, ступень тоже в ручном устанавливается *)
+            arBurners[iCount].Stage1 := TRUE;
+            arBurners[iCount].Stage2 := arBurners[iCount].ManualSecond;
+        END_IF;
+
+        IF arBurners[iCount].Auto AND NOT arBurners[iCount].Error THEN
+            (* Считаем сколько ступеней уже включено в авто режиме *)
+            INC(arBurners[iCount].Stage1, iCountStages);
+            INC(arBurners[iCount].Stage2, iCountStages);
+            (* Считаем сколько ступеней вообще доступно для авто режима *)
+            INC(arBurners[iCount].Power, giAvailableStages);
+            INC(arBurners[iCount].Power, giAvailableStages);
+        END_IF;
+    END_FOR;
+
+    (* Найти сколько еще нужно включить котлов
+    R522 это максимальная задача ПИД регулятора *)
+    iToAdd := (
+        (* Получаем колличесво шагов *)
+        giPIDTask /
+        (* Получаем велечину шага *)
+        (R522 / giAvailableStages)
+    ) - iCountStages;
+
+    iToSubtract := 0;
+    IF iToAdd < 0 THEN
+        iToSubtract := ABS(iToAdd);
+        iToAdd := 0;
+    END_IF;
+
+    IF iToAdd > 0 THEN
+        FOR iCount := 0 TO c_HEATERS_IDX DO
+            (* Смещаем индек для выравнивания моточасов *)
+            iShifted := SHFT(iShifter, iCount, c_HEATERS_IDX);
+            IF iToAdd > 0
+                AND arBurners[iShifted].Auto
+                AND arBurners[iShifted].Power
+            THEN
+                (* Не запущен *)
+                IF NOT arBurners[iShifted].Stage1 THEN
+                    arBurners[iShifted].Stage1 := TRUE;
+                    arBurners[iShifted].Stage2 := iToAdd > 1;
+                    SUB_E(TRUE, iToAdd, 1, iToAdd);
+                    SUB_E(arBurners[iShifted].Stage2, iToAdd, 1, iToAdd);
+                (* Запущен только на одну ступень *)
+                ELSIF (arBurners[iShifted].Stage1 AND NOT arBurners[iShifted].Stage2) THEN
+                    arBurners[iShifted].Stage2 := TRUE;
+                    SUB_E(TRUE, iToAdd, 1, iToAdd);
+                END_IF;
+            END_IF;
+
+            (* Закончить цикл если больше не нужно добавлять
+            TODO: добавить что добавляем только по одному котлу раз в период *)
+            IF iToAdd <= 0 THEN EXIT; END_IF;
+        END_FOR;
+
+    ELSIF iToSubtract > 0 THEN
+        FOR iCount := 0 TO c_HEATERS_IDX DO
+            (* Проходим массив начиная с конца в начало *)
+            iReverced := REVERSE(iCount, c_HEATERS_IDX);
+            (* Смещаем индек для выравнивания моточасов *)
+            iShifted := SHFT(iShifter, iReverced, c_HEATERS_IDX);
+            IF iToSubtract > 0
+                AND arBurners[iShifted].Auto
+                AND arBurners[iShifted].Power
+                AND arBurners[iShifted].Stage1
+            THEN
+
+                (* Запущен на две ступени *)
+                IF arBurners[iShifted].Stage2 THEN
+                    (* Выключаем если нужно понизить больше чем на 2 ступени *)
+                    arBurners[iShifted].Stage1 := iToSubtract < 2;
+
+                    (* Понижаем на одну степень как минимум *)
+                    arBurners[iShifted].Stage2 := FALSE;
+                    SUB_E(TRUE, iToSubtract, 1, iToSubtract);
+
+                    (* Если выключили значит понизили на 2 ступени *)
+                    SUB_E(NOT arBurners[iShifted].Stage1, iToSubtract, 1, iToSubtract);
+
+                (* Запущен на одну ступень *)
+                ELSE
+                    arBurners[iShifted].Stage1 := FALSE;
+                    SUB_E(TRUE, iToSubtract, 1, iToSubtract);
+                END_IF;
+            END_IF;
+
+            (* Закончить цикл если больше не нужно выключать *)
+            IF iToSubtract <= 0 THEN EXIT; END_IF;
+        END_FOR;
+    END_IF;
+
+    iStep := 5;
+
+5: (* work *)
+    xIsError := FALSE;
+    FOR iCount := 0 TO c_HEATERS_IDX DO
+        IF (arBurners[iCount].Error OR NOT arBurners[iCount].Enable) AND arBurners[iCount].Power THEN
+            arBurners[iCount].Manual := FALSE;
+            arBurners[iCount].Power := FALSE;
+            arBurners[iCount].Stage1 := FALSE;
+            arBurners[iCount].Stage2 := FALSE;
+            xIsError := TRUE;
+        END_IF;
+    END_FOR;
+    (* Ecли откзал котел или время вышло, на селектор *)
+    MOV(xIsError OR TS13, 4, iStep);
+    MOV(NOT gxStart, 2, iStep);(*na 2 shag chtobi vse vikluchit*)
+END_CASE;
+
+FOR iCount := 0 TO c_HEATERS_IDX DO
+    IF MEP(arBurners[iCount].Auto) THEN
+        arBurners[iCount].Manual := FALSE;
+        arBurners[iCount].ManualSecond := FALSE;
+    END_IF;
+    IF arBurners[iCount].Manual OR arBurners[iCount].ManualSecond THEN
+        arBurners[iCount].Auto := FALSE;
+    END_IF;
+END_FOR;
+
+(* 3way *)
+xPID3WayWork := gx3WayEnable
+    AND (iStep = 4 OR iStep = 5)
+    AND (DO_Pump1_T1_2 OR DO_Pump2_T1_2)
+    AND (AI_T_GVSFrom < SV_3WayTempGVS + SV_3WayTempGVSDelta);
+MOVP(xPID3WayWork AND gxPID3WayAT, SEL(gxPID3WayATLimitCycle, 2#0000_0000_0011_0001, 2#0000_0000_0111_0001), R601);
+RST(xPID3WayWork AND gxPID3WayAT, gxPID3WayAT);
+PID(xPID3WayWork, SV_3WayTempGVS, AI_T_GVSFrom, R600, giPID3WayTask);
+MOV(NOT xPID3WayWork, 0, giPID3WayTask);
+RST(MEF(gx3WayEnable), gx3WayManual);
+SET(gx3WayManual, gx3WayEnable);
+
+fbValve.SV := SEL(gx3WayManual, giPID3WayTask, SV_3WayManualTask);
+fbValve(
+    ENABLE := (gxStart AND (DO_Pump1_T1_2 OR DO_Pump2_T1_2)) OR (gx3WayManual),
+    DLT := SEL(gx3WayManual, SV_3WayDelta, 0),
+    TOTAL_TIME := DINT_TO_TIME(INT_TO_DINT(SV_3WayTotalTime) * 1000),
+    LUFT_TIME := INT_TO_TIME(SV_3WayLuftTime),
+    CLOSE_ON_DISABLE := gx3WayCloseWhenOff,
+    IS_OPENED := FALSE,
+    IS_CLOSED := FALSE,
+    OPEN := DO_3wayOpen,
+    CLOSE := DO_3wayClose
+);
+
+(* Подпитка *)
+SET(gxFillManual OR (gxFillAuto AND AI_P_Set < SV_PresFilStart), DO_ValveFill);
+RST(
+    (NOT gxFillAuto AND NOT gxFillManual)
+    OR (AI_P_Set > SV_PresFilStop)
+    OR AM_ISON(AM_ALARMS, 33) (* Alarm pressure *),
+    DO_ValveFill
+);
+
+(* Циркуляционные насосы *)
+giWorkStages := 0;
+FOR iCount := 0 TO c_HEATERS_IDX DO
+    INC(arBurners[iCount].Stage1, giWorkStages);
+    INC(arBurners[iCount].Stage2, giWorkStages);
+END_FOR;
+
+Circulation1(
+    ActiveStages := giWorkStages,
+    ActivePupmp1 := gxEnablePump1 AND NOT (AM_ISON(AM_ALARMS, 21) OR AM_ISON(AM_ALARMS, 25)),
+    ActivePupmp2 := gxEnablePump2 AND NOT (AM_ISON(AM_ALARMS, 22) OR AM_ISON(AM_ALARMS, 25)),
+    ActivePupmp3 := gxEnablePump3 AND NOT (AM_ISON(AM_ALARMS, 23) OR AM_ISON(AM_ALARMS, 25)),
+    ManualPupmp1 := gxManualPump1,
+    ManualPupmp2 := gxManualPump2,
+    ManualPupmp3 := gxManualPump3,
+    Start := gxStart,
+    StartPump1 := DO_Pump1,
+    StartPump2 := DO_Pump2,
+    StartPump3 := DO_Pump3
+);
+
+fbPumpsSO(
+    EnableP1 := gxPump1_T1_Enable,
+    EnableP2 := gxPump2_T1_Enable,
+    ManualP1 := gxPump1_T1_Manual,
+    ManualP2 := gxPump2_T1_Manual,
+    AlarmP1 := AM_ISON(AM_ALARMS, 15) OR AM_ISON(AM_ALARMS, 25),
+    AlarmP2 := AM_ISON(AM_ALARMS, 16) OR AM_ISON(AM_ALARMS, 25),
+    RT := 1_728_000, (* 24 hours in 50ms increments *)
+    PUMP1 := DO_Pump1_T1,
+    PUMP2 := DO_Pump2_T1
+);
+
+fbPumpsToTO(
+    EnableP1 := gxPump1_T1_2_Enable,
+    EnableP2 := gxPump2_T1_2_Enable,
+    ManualP1 := gxPump1_T1_2_Manual,
+    ManualP2 := gxPump2_T1_2_Manual,
+    AlarmP1 := AM_ISON(AM_ALARMS, 17) OR AM_ISON(AM_ALARMS, 25),
+    AlarmP2 := AM_ISON(AM_ALARMS, 18) OR AM_ISON(AM_ALARMS, 25),
+    RT := 1_728_000, (* 24 hours in 50ms increments *)
+    PUMP1 := DO_Pump1_T1_2,
+    PUMP2 := DO_Pump2_T1_2
+);
+
+fbPumpsFromTO(
+    EnableP1 := gxPump1_T3_Enable,
+    EnableP2 := gxPump2_T3_Enable,
+    ManualP1 := gxPump1_T3_Manual,
+    ManualP2 := gxPump2_T3_Manual,
+    AlarmP1 := AM_ISON(AM_ALARMS, 19),
+    AlarmP2 := AM_ISON(AM_ALARMS, 20),
+    RT := 1_728_000, (* 24 hours in 50ms increments *)
+    PUMP1 := DO_Pump1_T3,
+    PUMP2 := DO_Pump2_T3
+);

@@ -1,0 +1,84 @@
+CASE  ActiveStages  OF
+	 0..2 :
+		NambPump := 1;
+	 3..4 :
+		NambPump := 2;
+	 5..6 :
+		NambPump := 3;			
+END_CASE;
+
+ChangeN := bool_to_int( ActivePupmp1 ) + bool_to_int( ActivePupmp2 ) + bool_to_int( ActivePupmp3 ) + bool_to_int( Start )
+		 + bool_to_int( ManualPupmp1 ) + bool_to_int(ManualPupmp2 ) + bool_to_int( ManualPupmp3 ) + NambPump;
+		 
+IF ChangeN <> ChangeN2 THEN
+	Restart := TRUE;
+	ChangeN2 := ChangeN;
+END_IF;			 
+
+
+pumps[0].Evailable := ActivePupmp1;
+pumps[1].Evailable := ActivePupmp2;
+pumps[2].Evailable := ActivePupmp3;
+
+
+NewTime(IN:= (Start AND NOT NewTime.Q),PT:=INT_to_time(24)*6000);
+
+
+IF NewTime.Q THEN
+	Order := Order + 1;
+	IF Order > 2 THEN
+		Order := 0;
+	END_IF;
+	Restart	:= TRUE;	
+END_IF;
+
+IF Restart THEN 	
+	
+	FOR NPump := 0 TO 2 DO
+			pumps[NPump].Start := FALSE;			
+	END_FOR;
+	
+	pumps[0].Start := ManualPupmp1 AND pumps[0].Evailable;
+	pumps[1].Start := ManualPupmp2 AND pumps[1].Evailable;
+	pumps[2].Start := ManualPupmp3 AND pumps[2].Evailable;
+	
+	FOR NPump := 0 TO 2 DO	
+		IF pumps[NPump].Start THEN
+			NambPump := NambPump - 1;
+		END_IF;			
+	END_FOR;
+	
+	IF NPump > 0 THEN
+		FOR NPump := Order  TO 2 DO
+			IF (pumps[NPump].Evailable = TRUE) AND NOT (pumps[NPump].Start = TRUE) AND NambPump > 0 THEN
+				pumps[NPump].Start := TRUE;
+				NambPump := NambPump - 1;
+			END_IF;	
+			
+			IF NambPump < 1 THEN
+				EXIT;
+			END_IF;			
+		END_FOR;
+		
+		FOR NPump := 0 TO 2 DO
+			IF (pumps[NPump].Evailable = TRUE) AND NOT (pumps[NPump].Start = TRUE) AND NambPump > 0 THEN
+				pumps[NPump].Start := TRUE;
+				NambPump := NambPump - 1;
+			END_IF;	
+			IF NambPump < 1 THEN
+				EXIT;
+			END_IF;			
+		END_FOR;
+	END_IF;	
+	Restart := FALSE;
+END_IF;
+
+IF NOT Start THEN
+	pumps[0].Start := FALSE;
+	pumps[1].Start := FALSE;
+	pumps[2].Start := FALSE;
+END_IF;
+
+	StartPump1 := pumps[0].Start AND pumps[0].Evailable;
+	StartPump2 := pumps[1].Start AND pumps[1].Evailable;
+	StartPump3 := pumps[2].Start AND pumps[2].Evailable;

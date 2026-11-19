@@ -1,0 +1,258 @@
+EI(TRUE);
+
+AI_T_Heater1 := R23700 + Cor_T_Heater1;
+AI_T_Heater2 := R23701 + Cor_T_Heater2;
+AI_T_Heater3 := R23702 + Cor_T_Heater3;
+AI_T_Colector := R23704 + Cor_T_Colector;
+AI_T_SOFrom := R23703 + Cor_T_SOFrom;
+AI_T_SOTo := R23705 + Cor_T_SOTo;
+AI_T_GVSTo := R23706 + Cor_T_GVSTo;
+AI_T_GVSFrom := R23707 + Cor_T_GVSFrom;
+AI_T_Gaz := R23709 + Cor_T_Gaz;
+AI_T_Wather := R23708 + Cor_T_Wather;
+
+AI_P1 := SCALE(R23712, 0, 32766, 0, Max_P1);
+AI_P2 := SCALE(R23713, 0, 32766, 0, Max_P2);
+AI_P3 := SCALE(R23714, 0, 32766, 0, Max_P3);
+AI_P_SOTo := SCALE(R23715, 0, 32766, 0, Max_P_SOTo);
+AI_P_SOFrom := SCALE(R23716, 0, 32766, 0, Max_P_SOFrom);
+AI_P_GVSTo := SCALE(R23717, 0, 32766, 0, Max_P_GVSTo);
+AI_P_GVSFrom := SCALE(R23718, 0, 32766, 0, Max_P_GVSFrom);
+AI_P_Set := SCALE(R23719, 0, 32766, 0, Max_P_Set);
+AI_P_GAZ := SCALE(D8032, 0, 4000, 0, Max_P_GAZ);
+
+FAI_T_Heater1 := INT_TO_REAL(AI_T_Heater1) / 10.0;
+FAI_T_Heater2 := INT_TO_REAL(AI_T_Heater2) / 10.0;
+FAI_T_Heater3 := INT_TO_REAL(AI_T_Heater3) / 10.0;
+FAI_T_Colector := INT_TO_REAL(AI_T_Colector) / 10.0;
+FAI_T_SOFrom := INT_TO_REAL(AI_T_SOFrom) / 10.0;
+FAI_T_SOTo := INT_TO_REAL(AI_T_SOTo) / 10.0;
+FAI_T_GVSTo := INT_TO_REAL(AI_T_GVSTo) / 10.0;
+FAI_T_GVSFrom := INT_TO_REAL(AI_T_GVSFrom) / 10.0;
+FAI_T_Gaz := INT_TO_REAL(AI_T_Gaz) / 10.0;
+FAI_T_Wather := INT_TO_REAL(AI_T_Wather) / 10.0;
+
+FAI_P1 := INT_TO_REAL(AI_P1) / 10.0;
+FAI_P2 := INT_TO_REAL(AI_P2) / 10.0;
+FAI_P3 := INT_TO_REAL(AI_P3) / 10.0;
+FAI_P_SOTo := INT_TO_REAL(AI_P_SOTo) / 10.0;
+FAI_P_SOFrom := INT_TO_REAL(AI_P_SOFrom) / 10.0;
+FAI_P_GVSTo := INT_TO_REAL(AI_P_GVSTo) / 10.0;
+FAI_P_GVSFrom := INT_TO_REAL(AI_P_GVSFrom) / 10.0;
+FAI_P_Set := INT_TO_REAL(AI_P_Set) / 10.0;
+FAI_P_GAZ := INT_TO_REAL(AI_P_GAZ) / 10.0;
+
+
+T1_State := HEATER_STATE(arBurners[0]);
+T2_State := HEATER_STATE(arBurners[1]);
+T3_State := HEATER_STATE(arBurners[2]);
+
+Pump1_T1_State := PUMP_STATE(
+    DO_Pump1_T1, 
+    AM_ISON(AM_ALARMS, 15), 
+    gxPump1_T1_Enable
+);
+Pump2_T1_State := PUMP_STATE(
+    DO_Pump2_T1, 
+    AM_ISON(AM_ALARMS, 16), 
+    gxPump2_T1_Enable
+);
+Pump1_T1_2_State := PUMP_STATE(
+    DO_Pump1_T1_2, 
+    AM_ISON(AM_ALARMS, 17), 
+    gxPump1_T1_2_Enable
+);
+Pump2_T1_2_State := PUMP_STATE(
+    DO_Pump2_T1_2, 
+    AM_ISON(AM_ALARMS, 18), 
+    gxPump2_T1_2_Enable
+);
+Pump1_T3_State := PUMP_STATE(
+    DO_Pump1_T3, 
+    AM_ISON(AM_ALARMS, 19), 
+    gxPump1_T3_Enable
+);
+Pump2_T3_State := PUMP_STATE(
+    DO_Pump2_T3, 
+    AM_ISON(AM_ALARMS, 20), 
+    gxPump2_T3_Enable
+);
+Pump1_State := PUMP_STATE(DO_Pump1, AM_ISON(AM_ALARMS, 21), gxEnablePump1);
+Pump2_State := PUMP_STATE(DO_Pump2, AM_ISON(AM_ALARMS, 22), gxEnablePump2);
+Pump3_State := PUMP_STATE(DO_Pump3, AM_ISON(AM_ALARMS, 23), gxEnablePump3);
+
+IF AI_T_Wather <= SV_TWather1 THEN
+	giTSV := SV_TWater1;
+ELSIF AI_T_Wather <= SV_TWather2 THEN
+	giTSV := SCALE(AI_T_Wather, SV_TWather1, SV_TWather2, SV_TWater1, SV_TWater2);
+ELSIF AI_T_Wather <= SV_TWather3 THEN 
+	giTSV := SCALE(AI_T_Wather, SV_TWather2, SV_TWather3, SV_TWater2, SV_TWater3);
+ELSIF AI_T_Wather <= SV_TWather4 THEN 
+	giTSV := SCALE(AI_T_Wather, SV_TWather3, SV_TWather4, SV_TWater3, SV_TWater4);
+ELSE
+	giTSV := SV_TWater4;
+END_IF;
+
+fbAmSet(iNum := 0, xState := AI_T_Heater1 > SV_MaxTemperatureHeater);
+fbAmSet(iNum := 1, xState := AI_P1 > SV_MaxPressure);
+fbAmSet(iNum := 2, xState := AI_P1 < SV_MinPressure);
+fbAmSet(iNum := 3, xState := DI_BurnAlarm1);
+fbAmHasAlarm(iSeverity := AM_ERROR, iProcessNum := 1);
+arBurners[0].Error := fbAmHasAlarm.Q; 
+arBurners[0].Manual:= arBurners[0].Manual OR arBurners[0].ManualSecond;
+(*arBurners[0].Work := DI_BurnWork1;*)
+arBurners[0].Temperature := AI_T_Heater1;
+arBurners[0].Pressure := AI_P1;
+DO_Burn1Power := arBurners[0].Power;
+DO_Burn1Stage1 := arBurners[0].Stage1;
+DO_Burn1Stage2 := arBurners[0].Stage2;
+
+fbAmSet(iNum := 5, xState := AI_T_Heater2 > SV_MaxTemperatureHeater);
+fbAmSet(iNum := 6, xState := AI_P1 > SV_MaxPressure);
+fbAmSet(iNum := 7, xState := AI_P1 < SV_MinPressure);
+fbAmSet(iNum := 8, xState := DI_BurnAlarm2);
+fbAmHasAlarm(iSeverity := AM_ERROR, iProcessNum := 2);
+arBurners[1].Error := fbAmHasAlarm.Q;
+arBurners[1].Manual:= arBurners[1].Manual OR arBurners[1].ManualSecond;
+arBurners[1].Work := DI_BurnWork2;
+arBurners[1].Temperature := AI_T_Heater2;
+arBurners[1].Pressure := AI_P2;
+DO_Burn2Power := arBurners[1].Power;
+DO_Burn2Stage1 := arBurners[1].Stage1;
+DO_Burn2Stage2 := arBurners[1].Stage2;
+
+fbAmSet(iNum := 10, xState := AI_T_Heater3 > SV_MaxTemperatureHeater);
+fbAmSet(iNum := 11, xState := AI_P1 > SV_MaxPressure);
+fbAmSet(iNum := 12, xState := AI_P1 < SV_MinPressure);
+fbAmSet(iNum := 13, xState := DI_BurnAlarm3);
+fbAmHasAlarm(iSeverity := AM_ERROR, iProcessNum := 3);
+arBurners[2].Error := fbAmHasAlarm.Q;
+arBurners[2].Manual:= arBurners[2].Manual OR arBurners[2].ManualSecond;
+arBurners[2].Work := DI_BurnWork3;
+arBurners[2].Temperature := AI_T_Heater3;
+arBurners[2].Pressure := AI_P3;
+DO_Burn3Power := arBurners[2].Power;
+DO_Burn3Stage1 := arBurners[2].Stage1;
+DO_Burn3Stage2 := arBurners[2].Stage2;           
+
+(* DO_Pump1_T1 *)
+fbAmSet(iNum := 15, xState := DO_Pump1_T1 AND NOT DI_Pump1_T1);
+(* DO_Pump2_T1 *)
+fbAmSet(iNum := 16, xState := DO_Pump2_T1 AND NOT DI_Pump2_T1);
+(* DO_Pump1_T1_2 *)
+fbAmSet(iNum := 17, xState := DO_Pump1_T1_2 AND NOT DI_Pump1_T1_2);
+(* DO_Pump2_T1_2 *)
+fbAmSet(iNum := 18, xState := DO_Pump2_T1_2 AND NOT DI_Pump2_T1_2);
+(* DO_Pump1_T3 *)
+fbAmSet(iNum := 19, xState := DO_Pump1_T3 AND NOT DI_Pump1_T3);
+(* DO_Pump2_T3 *)
+fbAmSet(iNum := 20, xState := DO_Pump2_T3 AND NOT DI_Pump2_T3);
+(* DO_Pump1 *)
+fbAmSet(iNum := 21, xState := DO_Pump1 AND NOT DI_Pump1);
+(* DO_Pump2 *)
+fbAmSet(iNum := 22, xState := DO_Pump2 AND NOT DI_Pump2);
+(* DO_Pump3 *)
+fbAmSet(iNum := 23, xState := DO_Pump3 AND NOT DI_Pump3);
+
+iAvailable := 0;
+FOR iCount := 0 TO c_HEATERS_IDX DO
+    INC(
+    	(arBurners[iCount].Auto OR arBurners[iCount].Manual)
+    	AND NOT arBurners[iCount].Error 
+    	AND arBurners[iCount].Enable, 
+    	iAvailable
+    );
+END_FOR;
+
+fbAmSet(iNum := 24, xState := AI_P_GAZ < SV_GasMinPressure);
+fbAmSet(iNum := 25, xState := AI_P_Set < SV_SetMinPressure);
+fbAmSet(iNum := 26, xState := NOT DI_EKM);
+fbAmSet(iNum := 27, xState := NOT DI_ES);
+fbAmSet(iNum := 28, xState := NOT DI_RKF);
+fbAmSet(iNum := 29, xState := gxStart AND iAvailable = 0);
+fbAmSet(iNum := 30, xState := gxNoSettings);	
+
+fbAmSet(iNum := 31, xState := giWorkStages > 0 AND NOT (DO_Pump1 OR DO_Pump2 OR DO_Pump3));	
+
+fbAmSet(iNum := 32, xState := AI_T_Colector > SV_MaxTemperatureColector);	
+
+fbAmSet(iNum := 33, xState := AI_P_Set > SV_MaxPressure);	
+
+OUT_T(DO_ValveFill, TC12, SV_MaxFillTime * 10);
+fbAmSet(iNum := 34, xState := TS12);	
+
+fbAmSet(iNum := 35, xState := AI_T_GVSFrom > SV_3WayMaxTemperature);	
+
+fbAMPack(DNUM := 590, PD := AM_PACK_D);
+
+gxHasalarm := ((D590+D591+D592) <> 0);
+
+gxNoSettings := (R503 = 0)
+	OR (SV_TLimit = 0)
+	OR (SV_MaxPressure = 0)
+	OR (SV_MinPressure = 0)
+	OR (SV_MaxTemperatureHeater = 0)
+	OR (SV_TWather1 = 0)
+	OR (SV_TWater1 = 0)
+	OR (SV_TWather2 = 0)
+	OR (SV_TWater2 = 0)
+	OR (SV_TWather3 = 0)
+	OR (SV_TWater3 = 0)
+	OR (SV_TWather4 = 0)
+	OR (SV_TWater4 = 0)
+	OR (SV_GasMinPressure = 0)
+	OR (SV_SetMinPressure = 0)
+    OR (SV_3WayTempGVS = 0)
+    OR (SV_HowOftenToCheck = 0)
+    OR (SV_PresFilStart = 0)
+    OR (SV_PresFilStop = 0)
+    OR (SV_MaxFillTime = 0)
+    OR (SV_3WayDelta = 0)
+    OR (SV_3WayTotalTime = 0)
+    OR (SV_3WayLuftTime = 0)
+    OR (SV_3WayTempGVSDelta = 0)
+    OR (SV_3WayManualTask = 0)
+    OR (Max_P1 = 0)
+	OR (Max_P2 = 0)
+	OR (Max_P3 = 0)
+	OR (Max_P_SOTo = 0)
+	OR (Max_P_SOFrom = 0)
+	OR (Max_P_GVSTo = 0)
+	OR (Max_P_GVSFrom = 0)
+	OR (Max_P_Set = 0)
+	OR (Max_P_GAZ = 0)
+    OR (SV_3WayMaxTemperature = 0)
+    OR (SV_MaxTemperatureColector = 0)
+    ;	
+fbAmReset(IN:=gxErrorReset);
+
+fbAMBuzzer();
+SET(fbAMBuzzer.AC > giBuzzer, DO_AlarmBuzzer);
+giBuzzer := fbAMBuzzer.AC;
+RST(gxResetAlarm OR gxErrorReset OR DI_AlarmReset, DO_AlarmBuzzer);
+DO_AlarmLight := gxHasalarm;
+
+HOUR(DO_Burn1Stage1, K32000, giHeater1Hours, M0);
+IF gxResetWHT1 THEN giHeater1Hours[0] := 0; giHeater1Hours[1] := 0; END_IF;
+HOUR(DO_Burn2Stage1, K32000, giHeater2Hours, M0);
+IF gxResetWHT2 THEN giHeater2Hours[0] := 0; giHeater2Hours[1] := 0; END_IF;
+HOUR(DO_Burn2Stage1, K32000, giHeater3Hours, M0);
+IF gxResetWHT3 THEN giHeater3Hours[0] := 0; giHeater3Hours[1] := 0; END_IF;
+HOUR(DO_Pump1_T1, K32000, Pump1_T1_WH, M0);
+IF gxPump1_T1_WHReset THEN Pump1_T1_WH[0] := 0; Pump1_T1_WH[1] := 0; END_IF;
+HOUR(DO_Pump2_T1, K32000, Pump2_T1_WH, M0);
+IF gxPump2_T1_WHReset THEN Pump2_T1_WH[0] := 0; Pump2_T1_WH[1] := 0; END_IF;
+HOUR(DO_Pump1_T1_2, K32000, Pump1_T1_2_WH, M0);
+IF gxPump1_T1_2_WHReset THEN Pump1_T1_2_WH[0] := 0; Pump1_T1_2_WH[1] := 0; END_IF;
+HOUR(DO_Pump2_T1_2, K32000, Pump2_T1_2_WH, M0);
+IF gxPump2_T1_2_WHReset THEN Pump2_T1_2_WH[0] := 0; Pump2_T1_2_WH[1] := 0; END_IF;
+HOUR(DO_Pump1_T3, K32000, Pump1_T3_WH, M0);
+IF gxPump1_T3_WHReset THEN Pump1_T3_WH[0] := 0; Pump1_T3_WH[1] := 0; END_IF;
+HOUR(DO_Pump2_T3, K32000, Pump2_T3_WH, M0);
+IF gxPump2_T3_WHReset THEN Pump2_T3_WH[0] := 0; Pump2_T3_WH[1] := 0; END_IF;
+HOUR(DO_Pump1, K32000, Pump1_WH, M0);
+IF gxPump1_WHReset THEN Pump1_WH[0] := 0; Pump1_WH[1] := 0; END_IF;
+HOUR(DO_Pump2, K32000, Pump2_WH, M0);
+IF gxPump2_WHReset THEN Pump2_WH[0] := 0; Pump2_WH[1] := 0; END_IF;
+HOUR(DO_Pump3, K32000, Pump3_WH, M0);
+IF gxPump3_WHReset THEN Pump3_WH[0] := 0; Pump3_WH[1] := 0; END_IF;
