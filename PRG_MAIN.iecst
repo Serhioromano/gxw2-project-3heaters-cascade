@@ -101,13 +101,18 @@ CASE iStep OF
 
     (* ДОБАВЛЕНИЕ: не больше одной ступени за период проверки, чтобы мощность
        росла плавно. Ступень включается только если ПИД вышел за границу
-       следующей ступени на SV_StageHyst, иначе на самой границе ступень
+       следующей ступени на зону нечувствительности, иначе на самой границе ступень
        дёргалась бы каждый период. У последней доступной ступени гистерезис
        не применяется (порог ограничен R522), иначе она не включилась бы
        никогда *)
+    (* «Дельта %» с панели приходит в процентах x10 (50 = 5.0 %), а выход ПИД
+       и цена ступени считаются в единицах 0…600 (100 %). Поэтому проценты
+       переводим: 1 % = 6 единиц -> 5.0 % (50) = 30 единиц *)
+    iHyst := SV_StageHyst * 6 / 10;
+
     iToAdd := 0;
     IF iStepSize > 0 AND iCountStages < giAvailableStages THEN
-        iAddLimit := ((iCountStages + 1) * iStepSize) + SV_StageHyst;
+        iAddLimit := ((iCountStages + 1) * iStepSize) + iHyst;
         IF iAddLimit > iPIDMax THEN
             iAddLimit := iPIDMax;
         END_IF;
@@ -262,7 +267,7 @@ FOR iCount := 0 TO c_HEATERS_IDX DO
     INC(arBurners[iCount].Stage2, giWorkStages);
 END_FOR;
 
-Circulation1(
+fbCirculation(
     ActiveStages := giWorkStages,
     ActivePupmp1 := gxEnablePump1 AND NOT (AM_ALARMS[21].Alarm OR AM_ALARMS[25].Alarm),
     ActivePupmp2 := gxEnablePump2 AND NOT (AM_ALARMS[22].Alarm OR AM_ALARMS[25].Alarm),
