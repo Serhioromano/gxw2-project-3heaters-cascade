@@ -56,7 +56,7 @@ CASE iStep OF
     IF gxStart AND NOT fbAmBlock.Q THEN
         (* Смещаем индекс основной котел 0-5 для 6ти котолов *)
         (* TODO: смещение раз в неделю добавить *)
-        iShifter := INCN(TRUE, iShifter, c_HEATERS_IDX);
+        iShifter := F_INCN(TRUE, iShifter, c_HEATERS_IDX);
         iStep := 4;
     END_IF;
 
@@ -104,7 +104,7 @@ CASE iStep OF
     IF iToAdd > 0 THEN
         FOR iCount := 0 TO c_HEATERS_IDX DO
             (* Смещаем индек для выравнивания моточасов *)
-            iShifted := SHFT(iShifter, iCount, c_HEATERS_IDX);
+            iShifted := F_SHFT(iShifter, iCount, c_HEATERS_IDX);
             IF iToAdd > 0
                 AND arBurners[iShifted].Auto
                 AND arBurners[iShifted].Power
@@ -132,7 +132,7 @@ CASE iStep OF
             (* Проходим массив начиная с конца в начало *)
             iReverced := REVERSE(iCount, c_HEATERS_IDX);
             (* Смещаем индек для выравнивания моточасов *)
-            iShifted := SHFT(iShifter, iReverced, c_HEATERS_IDX);
+            iShifted := F_SHFT(iShifter, iReverced, c_HEATERS_IDX);
             IF iToSubtract > 0
                 AND arBurners[iShifted].Auto
                 AND arBurners[iShifted].Power
@@ -203,19 +203,19 @@ MOV(NOT xPID3WayWork, 0, giPID3WayTask);
 RST(MEF(gx3WayEnable), gx3WayManual);
 SET(gx3WayManual, gx3WayEnable);
 
-fbValve.SV := SEL(gx3WayManual, giPID3WayTask, SV_3WayManualTask);
 fbValve(
-    ENABLE := (gxStart AND (DO_Pump1_T1_2 OR DO_Pump2_T1_2)) OR (gx3WayManual),
-    DLT := SEL(gx3WayManual, SV_3WayDelta, 0),
+    xEnable := (gxStart AND (DO_Pump1_T1_2 OR DO_Pump2_T1_2)) OR (gx3WayManual),
+    iSV := SEL(gx3WayManual, giPID3WayTask, SV_3WayManualTask),
+    iDlt := SEL(gx3WayManual, SV_3WayDelta, 0),
     (* Ход клапана задаётся с панели в СЕКУНДАХ, люфт - в МИЛЛИСЕКУНДАХ.
        Арифметику делаем в DINT (мс), в TIME переводим только результат *)
-    TOTAL_TIME := DINT_TO_TIME(INT_TO_DINT(SV_3WayTotalTime) * 1000),
-    LUFT_TIME := DINT_TO_TIME(INT_TO_DINT(SV_3WayLuftTime)),
-    CLOSE_ON_DISABLE := gx3WayCloseWhenOff,
-    IS_OPENED := FALSE,
-    IS_CLOSED := FALSE,
-    OPEN := DO_3wayOpen,
-    CLOSE := DO_3wayClose
+    tTotalTime := DINT_TO_TIME(INT_TO_DINT(SV_3WayTotalTime) * 1000),
+    tLuftTime := DINT_TO_TIME(INT_TO_DINT(SV_3WayLuftTime)),
+    xCloseOnDisable := gx3WayCloseWhenOff,
+    xIsOpened := FALSE,
+    xIsClosed := FALSE,
+    xOpen := DO_3wayOpen,
+    xClose := DO_3wayClose
 );
 
 (* Подпитка.

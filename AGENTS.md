@@ -57,6 +57,9 @@
 
 - Команды/флаги HMI — `gx*` на M400…M444; внутренние вычисленные INT — `gi*` на D500+; уставки — `SV_*` на D510+.
 - Библиотечные блоки в объявлениях пишутся с префиксом: `FB_AM_INIT`, `FB_AM_SET`, `FB_AM_RESET`, `FB_AM_IS_BLOCK`, `FB_AM_HAS_ALARMS`, `FB_AM_BUZZER`, `FB_AM_PACK_ALARMS`, `FB_VALVE_3P`, `FB_TCO_50_BLINK`. Собственные POU проекта — без префикса (`Circulation`, `PUMPS`, `HEATER_STATE`, `PUMP_STATE`, `REVERSE`).
+- Функции библиотеки — с префиксом `F_`: `F_SCALE(iVal, iInLow, iInHigh, iOutLow, iOutHigh, xNoLimit)` (6 параметров, `xNoLimit = FALSE` — с ограничением), `F_INCN(xIn, iCur, iMax)`, `F_SHFT(iShifter, iIdx, iMax)`. Старые имена `SCALE`, `INCN`, `SHFT` не существуют.
+- Входы/выходы библиотечных блоков — по новой библиотеке: `FB_VALVE_3P(xEnable, iSV, iDlt, tTotalTime, tLuftTime, xCloseOnDisable, xIsOpened, xIsClosed, xOpen, xClose)`, `FB_TCO_50_BLINK(xIn, dwTimeLow, dwTimeHigh, xQ)`, `FB_AM_RESET(IN, AutoReset)`, `FB_AM_BUZZER(Reset, Q, AC)`. Положение клапана — 0…1000 (0.1 %).
+- `FB_VALVE_3P` и `FB_TCO_50_BLINK` требуют библиотеку `TimeControl` (тикер `TCO_DINT_50` в прерывании).
 - Время: `OUT_T` — пресет в единицах 100 мс; `FB_TCO_50_BLINK` — в тиках 50 мс (24 ч = `1_728_000`); IEC `TON` — `TIME` в миллисекундах (`T#24h`, `DINT_TO_TIME`).
 - Структуры CSV — 4 колонки, POU/FB — 7 колонок, FUN — 5 колонок (прямой экспорт GX Works 2), глобальные списки — 11 колонок (с Device/Address).
 - У каждой переменной в `GVL.csv` и `IO.csv` заполнен комментарий (колонка Comment) человеческим языком: что это, единицы измерения, к какому регистру/аварии относится. Пустых комментариев быть не должно.

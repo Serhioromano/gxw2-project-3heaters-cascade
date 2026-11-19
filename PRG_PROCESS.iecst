@@ -24,15 +24,15 @@ AI_T_GVSFrom := R23707 + Cor_T_GVSFrom;
 AI_T_Gaz := R23709 + Cor_T_Gaz;
 AI_T_Wather := R23708 + Cor_T_Wather;
 
-AI_P1 := SCALE(R23712, 0, 32766, 0, Max_P1);
-AI_P2 := SCALE(R23713, 0, 32766, 0, Max_P2);
-AI_P3 := SCALE(R23714, 0, 32766, 0, Max_P3);
-AI_P_SOTo := SCALE(R23715, 0, 32766, 0, Max_P_SOTo);
-AI_P_SOFrom := SCALE(R23716, 0, 32766, 0, Max_P_SOFrom);
-AI_P_GVSTo := SCALE(R23717, 0, 32766, 0, Max_P_GVSTo);
-AI_P_GVSFrom := SCALE(R23718, 0, 32766, 0, Max_P_GVSFrom);
-AI_P_Set := SCALE(R23719, 0, 32766, 0, Max_P_Set);
-AI_P_GAZ := SCALE(D8032, 0, 4000, 0, Max_P_GAZ);
+AI_P1 := F_SCALE(R23712, 0, 32766, 0, Max_P1, FALSE);
+AI_P2 := F_SCALE(R23713, 0, 32766, 0, Max_P2, FALSE);
+AI_P3 := F_SCALE(R23714, 0, 32766, 0, Max_P3, FALSE);
+AI_P_SOTo := F_SCALE(R23715, 0, 32766, 0, Max_P_SOTo, FALSE);
+AI_P_SOFrom := F_SCALE(R23716, 0, 32766, 0, Max_P_SOFrom, FALSE);
+AI_P_GVSTo := F_SCALE(R23717, 0, 32766, 0, Max_P_GVSTo, FALSE);
+AI_P_GVSFrom := F_SCALE(R23718, 0, 32766, 0, Max_P_GVSFrom, FALSE);
+AI_P_Set := F_SCALE(R23719, 0, 32766, 0, Max_P_Set, FALSE);
+AI_P_GAZ := F_SCALE(D8032, 0, 4000, 0, Max_P_GAZ, FALSE);
 
 FAI_T_Heater1 := INT_TO_REAL(AI_T_Heater1) / 10.0;
 FAI_T_Heater2 := INT_TO_REAL(AI_T_Heater2) / 10.0;
@@ -75,11 +75,11 @@ Pump3_State := PUMP_STATE(DO_Pump3, AM_ALARMS[23].Alarm, gxEnablePump3);
 IF AI_T_Wather <= SV_TWather1 THEN
 	giTSV := SV_TWater1;
 ELSIF AI_T_Wather <= SV_TWather2 THEN
-	giTSV := SCALE(AI_T_Wather, SV_TWather1, SV_TWather2, SV_TWater1, SV_TWater2);
+	giTSV := F_SCALE(AI_T_Wather, SV_TWather1, SV_TWather2, SV_TWater1, SV_TWater2, FALSE);
 ELSIF AI_T_Wather <= SV_TWather3 THEN
-	giTSV := SCALE(AI_T_Wather, SV_TWather2, SV_TWather3, SV_TWater2, SV_TWater3);
+	giTSV := F_SCALE(AI_T_Wather, SV_TWather2, SV_TWather3, SV_TWater2, SV_TWater3, FALSE);
 ELSIF AI_T_Wather <= SV_TWather4 THEN
-	giTSV := SCALE(AI_T_Wather, SV_TWather3, SV_TWather4, SV_TWater3, SV_TWater4);
+	giTSV := F_SCALE(AI_T_Wather, SV_TWather3, SV_TWather4, SV_TWater3, SV_TWater4, FALSE);
 ELSE
 	giTSV := SV_TWater4;
 END_IF;

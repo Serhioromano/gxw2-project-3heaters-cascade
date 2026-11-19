@@ -3,6 +3,6 @@
    Насосы пускаются отдельно от котлов и не зависят от gxStart.
    Авария или запрет насоса снимает его выход и передаёт работу второму.
    ========================================================================== *)
-fbBlink(IN := TRUE, TIMELOW := RT, TIMEHIGH := RT);
-PUMP1 := NOT AlarmP1 AND EnableP1 AND (ManualP1 OR fbBlink.Q OR (NOT fbBlink.Q AND (AlarmP2 OR NOT EnableP2)));
-PUMP2 := NOT AlarmP2 AND EnableP2 AND (ManualP2 OR NOT fbBlink.Q OR (fbBlink.Q AND (AlarmP1 OR NOT EnableP1)));
+fbBlink(xIn := TRUE, dwTimeLow := RT, dwTimeHigh := RT, xQ := xBlink);
+PUMP1 := NOT AlarmP1 AND EnableP1 AND (ManualP1 OR xBlink OR (NOT xBlink AND (AlarmP2 OR NOT EnableP2)));
+PUMP2 := NOT AlarmP2 AND EnableP2 AND (ManualP2 OR NOT xBlink OR (xBlink AND (AlarmP1 OR NOT EnableP1)));
