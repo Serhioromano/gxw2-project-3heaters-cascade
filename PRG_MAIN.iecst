@@ -7,8 +7,8 @@ EI(TRUE);
 
 fbAmBlock(iProcessNum := 10, iSeverity := c_AM_ERROR);
 
-(*stop s knopki*)
-rst( NOT DI_ES , gxStart );
+(* stop s knopki *)
+RST(NOT DI_ES , gxStart);
 
 (* Если общий блок то выключаем все горелки *)
 MOV(fbAmBlock.Q AND NOT (iStep = 3), 2, iStep);
@@ -178,7 +178,7 @@ CASE iStep OF
     END_FOR;
     (* Ecли откзал котел или время вышло, на селектор *)
     MOV(xIsError OR TS13, 4, iStep);
-    MOV(NOT gxStart, 2, iStep);(*na 2 shag chtobi vse vikluchit*)
+    MOV(NOT gxStart, 2, iStep); (* na 2 shag chtobi vse vikluchit *)
 END_CASE;
 
 FOR iCount := 0 TO c_HEATERS_IDX DO
@@ -208,7 +208,7 @@ fbValve(
     iSV := SEL(gx3WayManual, giPID3WayTask, SV_3WayManualTask),
     iDlt := SEL(gx3WayManual, SV_3WayDelta, 0),
     (* Ход клапана задаётся с панели в СЕКУНДАХ, люфт - в МИЛЛИСЕКУНДАХ.
-       Арифметику делаем в DINT (мс), в TIME переводим только результат *)
+       Арифметику делаем в DINT(мс), в TIME переводим только результат *)
     tTotalTime := DINT_TO_TIME(INT_TO_DINT(SV_3WayTotalTime) * 1000),
     tLuftTime := DINT_TO_TIME(INT_TO_DINT(SV_3WayLuftTime)),
     xCloseOnDisable := gx3WayCloseWhenOff,
