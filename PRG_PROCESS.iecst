@@ -24,14 +24,14 @@ AI_T_GVSFrom := R23707 + Cor_T_GVSFrom;
 AI_T_Gaz := R23709 + Cor_T_Gaz;
 AI_T_Weather := R23708 + Cor_T_Weather;
 
-AI_P1 := F_SCALE(R23712, 0, 32000, 0, Max_P1, FALSE);
-AI_P2 := F_SCALE(R23713, 0, 32000, 0, Max_P2, FALSE);
-AI_P3 := F_SCALE(R23714, 0, 32000, 0, Max_P3, FALSE);
-AI_P_SOTo := F_SCALE(R23715, 0, 32000, 0, Max_P_SOTo, FALSE);
-AI_P_SOFrom := F_SCALE(R23716, 0, 32000, 0, Max_P_SOFrom, FALSE);
-AI_P_GVSTo := F_SCALE(R23717, 0, 32000, 0, Max_P_GVSTo, FALSE);
-AI_P_GVSFrom := F_SCALE(R23718, 0, 32000, 0, Max_P_GVSFrom, FALSE);
-AI_P_Set := F_SCALE(R23719, 0, 32000, 0, Max_P_Set, FALSE);
+AI_P1 := F_SCALE(R23712, 0, 30000, 0, Max_P1, FALSE);
+AI_P2 := F_SCALE(R23713, 0, 30000, 0, Max_P2, FALSE);
+AI_P3 := F_SCALE(R23714, 0, 30000, 0, Max_P3, FALSE);
+AI_P_SOTo := F_SCALE(R23715, 0, 30000, 0, Max_P_SOTo, FALSE);
+AI_P_SOFrom := F_SCALE(R23716, 0, 30000, 0, Max_P_SOFrom, FALSE);
+AI_P_GVSTo := F_SCALE(R23717, 0, 30000, 0, Max_P_GVSTo, FALSE);
+AI_P_GVSFrom := F_SCALE(R23718, 0, 30000, 0, Max_P_GVSFrom, FALSE);
+AI_P_Set := F_SCALE(R23719, 0, 30000, 0, Max_P_Set, FALSE);
 AI_P_GAZ := F_SCALE(D8032, 0, 4030, 0, Max_P_GAZ, FALSE);
 
 FAI_T_Heater1 := INT_TO_REAL(AI_T_Heater1) / 10.0;
@@ -55,26 +55,43 @@ FAI_P_GVSFrom := INT_TO_REAL(AI_P_GVSFrom) / 10.0;
 FAI_P_Set := INT_TO_REAL(AI_P_Set) / 10.0;
 FAI_P_GAZ := INT_TO_REAL(AI_P_GAZ) / 10.0;
 
-(* ОБРЫВ ДАТЧИКОВ ТЕМПЕРАТУРЫ. Модуль отдаёт -1990 (-199.0 C) на
-   разомкнутом Pt100. Сравниваем не с -1990, а с порогом c_AI_T_BREAK
-   (-1900 = -190 C): к показанию прибавляется поправка Cor_* с панели,
-   поэтому точное значение может отличаться, а реальных -190 C в котельной
-   не бывает.
+(* ОБРЫВ ДАТЧИКОВ ТЕМПЕРАТУРЫ. Модуль отдаёт ровно -1990 (-199.0 C) на
+   разомкнутом Pt100, поэтому сравниваем с -1990 на равенство.
+   Вход - сырые регистры АЦП R2370x, а не показания AI_T_*: в показаниях уже
+   прибавлена поправка Cor_* с панели, и признак обрыва был бы искажён.
    Аварии 36/37/38 (котлы 1/2/3) идут в группы 1/2/3 - такой котёл
    выводится из каскада через arBurners[i].Error, как перегрев.
    Авария 39 (коллектор) и 43 (обратка ТО ГВС) дополнительно снимают
    ПИД каскада и ПИД 3-ходового клапана - см. PRG_MAIN.
    Аварии 40/41/42/44/45 - только сигнализация, в логике не участвуют. *)
-fbAmSet(iNum := 36, xState := AI_T_Heater1 = -1990);
-fbAmSet(iNum := 37, xState := AI_T_Heater2 = -1990);
-fbAmSet(iNum := 38, xState := AI_T_Heater3 = -1990);
-fbAmSet(iNum := 39, xState := AI_T_Colector = -1990);
-fbAmSet(iNum := 40, xState := AI_T_SOFrom = -1990);
-fbAmSet(iNum := 41, xState := AI_T_SOTo = -1990);
-fbAmSet(iNum := 42, xState := AI_T_GVSTo = -1990);
-fbAmSet(iNum := 43, xState := AI_T_GVSFrom = -1990);
-fbAmSet(iNum := 44, xState := AI_T_Gaz = -1990);
-fbAmSet(iNum := 45, xState := AI_T_Weather = -1990);
+fbAmSet(iNum := 36, xState := R23700 = -1990);   (* T котла 1 *)
+fbAmSet(iNum := 37, xState := R23701 = -1990);   (* T котла 2 *)
+fbAmSet(iNum := 38, xState := R23702 = -1990);   (* T котла 3 *)
+fbAmSet(iNum := 39, xState := R23704 = -1990);   (* T коллектора *)
+fbAmSet(iNum := 40, xState := R23703 = -1990);   (* T обратки отопления *)
+fbAmSet(iNum := 41, xState := R23705 = -1990);   (* T подачи отопления *)
+fbAmSet(iNum := 42, xState := R23706 = -1990);   (* T подачи ГВС *)
+fbAmSet(iNum := 43, xState := R23707 = -1990);   (* T обратки ГВС *)
+fbAmSet(iNum := 44, xState := R23709 = -1990);   (* T газа *)
+fbAmSet(iNum := 45, xState := R23708 = -1990);   (* T улицы *)
+(* НУЛЕВОЕ ДАВЛЕНИЕ (обрыв линии 4..20 мА или отказ датчика).
+   На разомкнутой линии 4..20 мА модуль отдаёт ровно 0 (после F_SCALE это
+   0.0 бара), поэтому сравниваем с 0 на равенство. Вход - сырые регистры
+   R2371x, газ - встроенный вход D8032. Показание 2 отсчёта и выше означает
+   живой датчик и тревоги не даёт: 2 отсчёта - это уже сигнал с датчика.
+   Давление котла (46/47/48) идёт в группы 1/2/3 - котёл выходит из
+   каскада, как при перегреве.
+   Давление в системе (49), газа (50) и давлений отопления/ГВС (51..54) -
+   группа 10, насосы они НЕ запрещают. По аварии 49 закрывается подпитка. *)
+fbAmSet(iNum := 46, xState := R23712 = 0);   (* давление котла 1 *)
+fbAmSet(iNum := 47, xState := R23713 = 0);   (* давление котла 2 *)
+fbAmSet(iNum := 48, xState := R23714 = 0);   (* давление котла 3 *)
+fbAmSet(iNum := 49, xState := R23719 = 0);   (* давление в системе *)
+fbAmSet(iNum := 50, xState := D8032 = 0);    (* давление газа *)
+fbAmSet(iNum := 51, xState := R23715 = 0);   (* давление подачи отопления *)
+fbAmSet(iNum := 52, xState := R23716 = 0);   (* давление обратки отопления *)
+fbAmSet(iNum := 53, xState := R23717 = 0);   (* давление подачи ГВС *)
+fbAmSet(iNum := 54, xState := R23718 = 0);   (* давление обратки ГВС *)
 
 
 T1_State := HEATER_STATE(arBurners[0]);
@@ -107,7 +124,7 @@ END_IF;
 
 fbAmSet(iNum := 0, xState := AI_T_Heater1 > SV_MaxTemperatureHeater);
 fbAmSet(iNum := 1, xState := AI_P1 > SV_MaxPressure);
-fbAmSet(iNum := 2, xState := AI_P1 < SV_MinPressure);
+fbAmSet(iNum := 2, xState := AI_P1 < SV_MinPressure AND R23712 <> 0);
 fbAmSet(iNum := 3, xState := DI_BurnAlarm1);
 fbAmHasAlarm(iSeverity := c_AM_ERROR, iProcessNum := 1);
 arBurners[0].Error := fbAmHasAlarm.Q;
@@ -121,7 +138,7 @@ DO_Burn1Stage2 := arBurners[0].Stage2;
 
 fbAmSet(iNum := 5, xState := AI_T_Heater2 > SV_MaxTemperatureHeater);
 fbAmSet(iNum := 6, xState := AI_P2 > SV_MaxPressure);
-fbAmSet(iNum := 7, xState := AI_P2 < SV_MinPressure);
+fbAmSet(iNum := 7, xState := AI_P2 < SV_MinPressure AND R23713 <> 0);
 fbAmSet(iNum := 8, xState := DI_BurnAlarm2);
 fbAmHasAlarm(iSeverity := c_AM_ERROR, iProcessNum := 2);
 arBurners[1].Error := fbAmHasAlarm.Q;
@@ -135,7 +152,7 @@ DO_Burn2Stage2 := arBurners[1].Stage2;
 
 fbAmSet(iNum := 10, xState := AI_T_Heater3 > SV_MaxTemperatureHeater);
 fbAmSet(iNum := 11, xState := AI_P3 > SV_MaxPressure);
-fbAmSet(iNum := 12, xState := AI_P3 < SV_MinPressure);
+fbAmSet(iNum := 12, xState := AI_P3 < SV_MinPressure AND R23714 <> 0);
 fbAmSet(iNum := 13, xState := DI_BurnAlarm3);
 fbAmHasAlarm(iSeverity := c_AM_ERROR, iProcessNum := 3);
 arBurners[2].Error := fbAmHasAlarm.Q;
@@ -177,7 +194,10 @@ FOR iCount := 0 TO c_HEATERS_IDX DO
 END_FOR;
 
 fbAmSet(iNum := 24, xState := AI_P_GAZ < SV_GasMinPressure);
-fbAmSet(iNum := 25, xState := AI_P_Set < SV_SetMinPressure);
+(* 25 - давление в системе ниже минимального: запрет насосов.
+   На 0.0 бара эта авария не срабатывает (там авария 49): обрыв датчика
+   не должен останавливать насосы навсегда - иначе котельная не пустится. *)
+fbAmSet(iNum := 25, xState := AI_P_Set < SV_SetMinPressure AND R23719 <> 0);
 fbAmSet(iNum := 26, xState := NOT DI_EKM);
 fbAmSet(iNum := 27, xState := NOT DI_ES);
 fbAmSet(iNum := 28, xState := NOT DI_RKF);

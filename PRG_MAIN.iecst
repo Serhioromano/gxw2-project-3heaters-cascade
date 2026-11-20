@@ -258,7 +258,14 @@ fbValve(
    Защита от переподпитки действует и в ручном режиме: RST стоит последним,
    поэтому при давлении выше SV_PresFilStop или аварии 33 клапан закрыт
    в любом режиме, даже если оператор держит ручную подпитку. *)
-SET(gxFillManual OR (gxFillAuto AND AI_P_Set < SV_PresFilStart), DO_ValveFill);
+(* Авария 49 - датчик давления в системе показывает 0.0 бара (вероятно
+   обрыв). Набирать воду по неработающему датчику нельзя: клапан открылся
+   бы до аварии 34 по таймауту и залил систему. *)
+SET(
+    (gxFillManual OR (gxFillAuto AND AI_P_Set < SV_PresFilStart))
+    AND NOT AM_ALARMS[49].Alarm,
+    DO_ValveFill
+);
 RST(
     (NOT gxFillAuto AND NOT gxFillManual)
     OR (AI_P_Set > SV_PresFilStop)
