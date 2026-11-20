@@ -22,6 +22,9 @@ OUT_T(iStep = 5, TC13, SV_HowOftenToCheck * 10);
 xPIDWork :=
     (iStep = 4 OR iStep = 5)
     AND (AI_T_Colector < (giTSV + SV_TLimit))
+    (* Обрыв датчика коллектора (авария 39): без обратной связи ПИД ушёл бы
+       на 100 %, поэтому регулятор снимается и задание каскада обнуляется *)
+    AND NOT AM_ALARMS[39].Alarm
     AND NOT fbAmBlock.Q;
 (* Если включена автонастройка ПИД то активируем *)
 MOVP(
@@ -225,6 +228,9 @@ END_FOR;
 xPID3WayWork := gx3WayEnable
     AND (iStep = 4 OR iStep = 5)
     AND (DO_Pump1_T1_2 OR DO_Pump2_T1_2)
+    (* Обрыв датчика обратки ГВС (авария 43): ПИД клапана снимается,
+       иначе он открыл бы клапан на 100 % по -199 C *)
+    AND NOT AM_ALARMS[43].Alarm
     AND (AI_T_GVSFrom < SV_3WayTempGVS + SV_3WayTempGVSDelta);
 MOVP(xPID3WayWork AND gxPID3WayAT, SEL(gxPID3WayATLimitCycle, 2#0000_0000_0011_0001, 2#0000_0000_0111_0001), R601);
 RST(xPID3WayWork AND gxPID3WayAT, gxPID3WayAT);

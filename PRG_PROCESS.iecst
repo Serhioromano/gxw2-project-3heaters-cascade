@@ -55,6 +55,27 @@ FAI_P_GVSFrom := INT_TO_REAL(AI_P_GVSFrom) / 10.0;
 FAI_P_Set := INT_TO_REAL(AI_P_Set) / 10.0;
 FAI_P_GAZ := INT_TO_REAL(AI_P_GAZ) / 10.0;
 
+(* ОБРЫВ ДАТЧИКОВ ТЕМПЕРАТУРЫ. Модуль отдаёт -1990 (-199.0 C) на
+   разомкнутом Pt100. Сравниваем не с -1990, а с порогом c_AI_T_BREAK
+   (-1900 = -190 C): к показанию прибавляется поправка Cor_* с панели,
+   поэтому точное значение может отличаться, а реальных -190 C в котельной
+   не бывает.
+   Аварии 36/37/38 (котлы 1/2/3) идут в группы 1/2/3 - такой котёл
+   выводится из каскада через arBurners[i].Error, как перегрев.
+   Авария 39 (коллектор) и 43 (обратка ТО ГВС) дополнительно снимают
+   ПИД каскада и ПИД 3-ходового клапана - см. PRG_MAIN.
+   Аварии 40/41/42/44/45 - только сигнализация, в логике не участвуют. *)
+fbAmSet(iNum := 36, xState := AI_T_Heater1 = -1990);
+fbAmSet(iNum := 37, xState := AI_T_Heater2 = -1990);
+fbAmSet(iNum := 38, xState := AI_T_Heater3 = -1990);
+fbAmSet(iNum := 39, xState := AI_T_Colector = -1990);
+fbAmSet(iNum := 40, xState := AI_T_SOFrom = -1990);
+fbAmSet(iNum := 41, xState := AI_T_SOTo = -1990);
+fbAmSet(iNum := 42, xState := AI_T_GVSTo = -1990);
+fbAmSet(iNum := 43, xState := AI_T_GVSFrom = -1990);
+fbAmSet(iNum := 44, xState := AI_T_Gaz = -1990);
+fbAmSet(iNum := 45, xState := AI_T_Weather = -1990);
+
 
 T1_State := HEATER_STATE(arBurners[0]);
 T2_State := HEATER_STATE(arBurners[1]);
