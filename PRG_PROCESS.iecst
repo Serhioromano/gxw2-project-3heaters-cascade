@@ -24,6 +24,8 @@ AI_T_GVSFrom := R23707 + Cor_T_GVSFrom;
 AI_T_Gaz := R23709 + Cor_T_Gaz;
 AI_T_Weather := R23708 + Cor_T_Weather;
 
+(* Замерил руками на 20ма значение 29900-30200
+поэтому назначаю высшее значение средние 30000 *)
 AI_P1 := F_SCALE(R23712, 0, 30000, 0, Max_P1, FALSE);
 AI_P2 := F_SCALE(R23713, 0, 30000, 0, Max_P2, FALSE);
 AI_P3 := F_SCALE(R23714, 0, 30000, 0, Max_P3, FALSE);
